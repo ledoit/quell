@@ -3,7 +3,7 @@
 **Version:** 0.8.0  
 **As of:** 2026-09-17  
 **SoT:** [Linear — Quell](https://linear.app/menhir-holdings/project/quell-4c873f24ef7f)  
-**Checkout:** `Menhir Holdings/Game/Quell`
+**Checkout:** `personal/Stonehenge/Game/Quell`
 
 ## Shipped
 
