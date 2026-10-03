@@ -24,21 +24,21 @@ Ship each pass to **https://quellcube.vercel.app**. Do not leave work sitting on
 ## Live
 
 - **App:** https://quellcube.vercel.app
-- **Linear:** [Quell](https://linear.app/menhir-holdings/project/quell-4c873f24ef7f) — authoritative SoT; see [STATUS.md](./STATUS.md)
-- **Repo:** https://github.com/menhir-holdings/quell
+- **Linear:** Quell — authoritative SoT; see [STATUS.md](./STATUS.md)
+- **Repo:** https://github.com/ledoit/quell
 
 ## Issues
 
 | ID | Title | Status |
 |----|-------|--------|
-| [MT-227](https://linear.app/menhir-holdings/issue/MT-227) | Learn overlay lookup + Practice start hub | In Review |
-| [MT-198](https://linear.app/menhir-holdings/issue/MT-198) | Name in diagram, Change case, persist names | Done |
-| [MT-197](https://linear.app/menhir-holdings/issue/MT-197) | Single chained flashcard + local accounts | Done |
-| [MT-196](https://linear.app/menhir-holdings/issue/MT-196) | Learn unlearned chain states (superseded) | Canceled |
-| [MT-195](https://linear.app/menhir-holdings/issue/MT-195) | Practice chaining, unified next | Done |
-| [MT-194](https://linear.app/menhir-holdings/issue/MT-194) | STC 2D, alg-card reveal, Learned | Done |
-| [MT-193](https://linear.app/menhir-holdings/issue/MT-193) | OLL/PLL learn + practice UX | Done |
-| [MT-192](https://linear.app/menhir-holdings/issue/MT-192) | v1 trainer (superseded UX) | Closed |
+| MT-227 | Learn overlay lookup + Practice start hub | In Review |
+| MT-198 | Name in diagram, Change case, persist names | Done |
+| MT-197 | Single chained flashcard + local accounts | Done |
+| MT-196 | Learn unlearned chain states (superseded) | Canceled |
+| MT-195 | Practice chaining, unified next | Done |
+| MT-194 | STC 2D, alg-card reveal, Learned | Done |
+| MT-193 | OLL/PLL learn + practice UX | Done |
+| MT-192 | v1 trainer (superseded UX) | Closed |
 
 ## Develop
 
@@ -55,4 +55,4 @@ npm run dev
 
 ## License
 
-All Rights Reserved © Menhir Holdings
+All Rights Reserved © Philippe Ledoit
