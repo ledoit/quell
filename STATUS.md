@@ -3,7 +3,7 @@
 **Version:** 0.8.0  
 **As of:** 2026-09-17  
 **SoT:** Linear — Quell  
-**Checkout:** `personal/Stonehenge/Game/Quell`
+**Checkout:** `ivory/Stonehenge/Game/Quell`
 
 ## Shipped
 
