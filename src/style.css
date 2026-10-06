@@ -15,7 +15,7 @@ html[data-look="hard"] {
   --yellow: #f5c518;
   --empty: #eeebe3;
   --rule: #e4e1d8;
-  --font: "Instrument Sans", sans-serif;
+  --font: "IBM Plex Sans", sans-serif;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -40,7 +40,7 @@ header {
   display: flex;
   align-items: flex-end;
   gap: 1.15rem;
-  padding: 0.85rem 1.1rem 0.35rem;
+  padding: 0.85rem 1.25rem 0.35rem;
   min-height: 3.1rem;
   position: relative;
 }
@@ -168,6 +168,21 @@ html[data-look="hard"] .cell { background: var(--bg); gap: 2cqh; color: var(--qu
 
 html[data-look="hard"] .face { width: min(64cqw, 58cqh); gap: 6%; }
 
+#grid[data-fit="g4"] .face { width: min(52cqw, 64cqh); }
+#grid[data-fit="g4"] .cell span { font-size: min(4.2cqh, 1.35rem); font-weight: 560; }
+#grid[data-fit="g1"] .face,
+#grid[data-fit="g2"] .face { width: min(46cqw, 62cqh); }
+
+html[data-look="hard"] #grid[data-fit="g4"] .face { width: min(46cqw, 58cqh); }
+html[data-look="hard"] #grid[data-fit="g1"] .face,
+html[data-look="hard"] #grid[data-fit="g2"] .face { width: min(40cqw, 58cqh); }
+html[data-look="hard"] #grid[data-fit="g4"] .cell span,
+html[data-look="hard"] #grid[data-fit="g1"] .cell span,
+html[data-look="hard"] #grid[data-fit="g2"] .cell span {
+  font-size: min(4.6cqh, 0.78rem);
+  font-weight: 500;
+}
+
 .face.perm { position: relative; gap: 6%; }
 
 .face i { border-radius: 16%; background: var(--empty); }
@@ -215,6 +230,10 @@ html[data-look="hard"] .cell span.id {
   overflow: hidden;
   cursor: pointer;
   background: color-mix(in srgb, var(--ink) 32%, transparent);
+}
+
+html[data-look="hard"] #alg {
+  background: color-mix(in srgb, var(--ink) 28%, transparent);
 }
 
 #alg[hidden] { display: none; }

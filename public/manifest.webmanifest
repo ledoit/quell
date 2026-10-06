@@ -2,14 +2,14 @@
   "id": "/",
   "name": "Quell",
   "short_name": "Quell",
-  "description": "Chained OLL and PLL flashcards.",
+  "description": "OLL patterns and PLL letters.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait",
-  "background_color": "#f2f3f7",
-  "theme_color": "#f2f3f7",
+  "background_color": "#f3f2ee",
+  "theme_color": "#f3f2ee",
   "lang": "en",
   "icons": [
     {

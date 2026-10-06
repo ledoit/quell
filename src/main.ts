@@ -65,13 +65,23 @@ function layout(count: number): { cols: number; rows: number } {
   return { cols: 4, rows: 4 };
 }
 
+function gridFit(count: number): string {
+  if (count <= 1) return "g1";
+  if (count === 2) return "g2";
+  if (count <= 4) return "g4";
+  if (count <= 6) return "g6";
+  if (count <= 8) return "g8";
+  if (count <= 12) return "g12";
+  return "g16";
+}
+
 function fitAlg(): void {
   if (alg.hidden || alg.clientWidth < 40) return;
   let size = Math.min(alg.clientWidth * 0.078, alg.clientHeight * 0.2);
   movesEl.style.fontSize = `${size}px`;
-  const maxH = alg.clientHeight * 0.52;
-  while (size > 28 && movesEl.scrollHeight > maxH) {
-    size *= 0.92;
+  const maxH = alg.clientHeight * 0.62;
+  while (size > 18 && movesEl.scrollHeight > maxH) {
+    size *= 0.9;
     movesEl.style.fontSize = `${size}px`;
   }
 }
@@ -118,6 +128,7 @@ function render(): void {
 
   const cells = pattern ? caseCells(pattern) : patternCells();
   const { cols, rows } = layout(cells.length);
+  grid.dataset.fit = gridFit(cells.length);
   grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
   grid.style.gridTemplateRows = `repeat(${rows}, minmax(0, 1fr))`;
   const blanks = cols * rows - cells.length;
