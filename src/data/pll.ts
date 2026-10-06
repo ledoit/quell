@@ -18,7 +18,7 @@ function c(
 /** 21 PLLs. Primaries favor RUF / RUD / home-grip (no mid-alg y / u). */
 export const PLL: CaseDef[] = [
   c("H", "H", "EPLL", "(M2 U M2) U2 (M2 U M2)", true),
-  c("Z", "Z", "EPLL", "M2 U M2 U M' U2 M2 U2 M'", true),
+  c("Z", "Z", "EPLL", "M2 U M2 U M' U2 M2 U2 M' U2", true),
   c("Ub", "Ub", "EPLL", "R2 U' (R' U' R) U R U (R U' R)", true),
   c("Ua", "Ua", "EPLL", "(R' U R' U') R' U' (R' U R) U R2", true),
   c("Aa", "Aa", "CPLL", "x R' U R' D2 R U' R' D2 R2 x'", true),
@@ -60,10 +60,10 @@ export const PLL: CaseDef[] = [
     "Opposite",
     "(R' U R U') R' (F' U' F) (R U R' F) R' F' (R U' R)",
   ),
-  c("Ga", "Ga", "G", "R2 U R' U R' U' R U' R2 U' D R' U R D'"),
-  c("Gb", "Gb", "G", "R' U' R U D' R2 U R' U R U' R U' R2 D"),
-  c("Gc", "Gc", "G", "R2 U' R U' R U R' U R2 U D' R U' R' D"),
-  c("Gd", "Gd", "G", "R U R' U' D R2 U' R U' R' U R' U R2 D'"),
+  c("Ga", "Ga", "G", "L2 D F' U F' U' F D' L2 B' U B"),
+  c("Gb", "Gb", "G", "B' U' B L2 D F' U F U' F D' L2"),
+  c("Gc", "Gc", "G", "B2 D' R U' R U R' D B2 L U' L'"),
+  c("Gd", "Gd", "G", "L U L' B2 D' R U' R' U R' D B2"),
 ];
 
 export const PLL_GROUPS = ["EPLL", "CPLL", "Adjacent", "Opposite", "G"];
