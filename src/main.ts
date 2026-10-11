@@ -4,6 +4,7 @@ import { PLL } from "./data/pll";
 import { faceHtml } from "./face";
 import { lastLayer, type LlStickers } from "./ll";
 import { findPattern, patternsFor, type PatternDef } from "./patterns";
+import { anotherCase, quizOptions, type QuizOption } from "./quiz";
 import "./style.css";
 import type { CaseDef, SetId } from "./types";
 
@@ -22,10 +23,14 @@ const movesEl = alg.querySelector<HTMLElement>(".moves")!;
 
 const faces = new Map<string, LlStickers>();
 
+type Quiz = { caseId: string; options: QuizOption[]; picked: string | null };
+
 let set: SetId = "oll";
 let patternId: string | null = null;
 let caseId: string | null = null;
 let look: Look = readLook();
+let quiz: Quiz | null = null;
+let quizMarkAt = 0;
 
 document.documentElement.dataset.look = look;
 app.dataset.look = look;
@@ -39,8 +44,34 @@ function readLook(): Look {
 }
 
 function setupAlg(moves: string): string {
-  const flat = moves.replace(/[()]/g, " ").replace(/\s+/g, " ").trim();
+  const flat = moves.replace(/[()]/g, " ").replace(/2'/g, "2").replace(/\s+/g, " ").trim();
   return new Alg(flat).invert().simplify({ cancel: true }).toString();
+}
+
+function viewKey(ll: LlStickers | undefined, current: SetId): string {
+  if (!ll) return "";
+  const top = ll.u.map((hue) => (hue === "Y" ? "Y" : ".")).join("");
+  if (current !== "pll") return top;
+  return `${top}:${ll.edgePerm.join(",")}:${ll.cornerPerm.join(",")}`;
+}
+
+function colliding(ids: string[], current: SetId): Set<string> {
+  const keys = ids.map((id) => viewKey(faces.get(`${current}:${id}`), current));
+  const counts = new Map<string, number>();
+  for (const key of keys) {
+    if (!key) continue;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const hit = new Set<string>();
+  ids.forEach((id, index) => {
+    if ((counts.get(keys[index]) ?? 0) > 1) hit.add(id);
+  });
+  return hit;
+}
+
+function ask(avoid: string | null = quiz?.caseId ?? null): void {
+  const answer = anotherCase(casesFor(set), avoid);
+  quiz = { caseId: answer.id, options: quizOptions(casesFor(set), answer), picked: null };
 }
 
 function casesFor(current: SetId): CaseDef[] {
@@ -73,6 +104,19 @@ function gridFit(count: number): string {
   if (count <= 8) return "g8";
   if (count <= 12) return "g12";
   return "g16";
+}
+
+function fitOpts(): void {
+  for (const el of grid.querySelectorAll<HTMLElement>(".opt p")) {
+    const box = el.parentElement;
+    if (!box || box.clientWidth < 20) continue;
+    let size = Math.min(box.clientWidth * 0.2, box.clientHeight * 0.34);
+    el.style.fontSize = `${size}px`;
+    while (size > 15 && (el.scrollHeight > box.clientHeight * 0.78 || el.scrollWidth > box.clientWidth * 0.94)) {
+      size *= 0.92;
+      el.style.fontSize = `${size}px`;
+    }
+  }
 }
 
 function fitAlg(): void {
@@ -113,8 +157,21 @@ function render(): void {
   for (const button of app.querySelectorAll<HTMLButtonElement>("[data-set]")) {
     button.classList.toggle("on", button.dataset.set === set);
   }
-  back.hidden = !pattern;
+  for (const button of app.querySelectorAll<HTMLButtonElement>("[data-mode]")) {
+    button.classList.toggle("on", Boolean(quiz));
+  }
+  back.hidden = Boolean(quiz) || !pattern;
   back.textContent = pattern?.name ?? "";
+  alg.hidden = true;
+
+  if (quiz) {
+    grid.dataset.fit = "quiz";
+    grid.style.gridTemplateColumns = "";
+    grid.style.gridTemplateRows = "";
+    grid.innerHTML = quizHtml();
+    requestAnimationFrame(fitOpts);
+    return;
+  }
 
   const selected = caseId ? caseById(set, caseId) : undefined;
   if (pattern && selected) {
@@ -122,8 +179,6 @@ function render(): void {
     movesEl.textContent = selected.algs[0]?.moves ?? "";
     alg.hidden = false;
     requestAnimationFrame(() => requestAnimationFrame(fitAlg));
-  } else {
-    alg.hidden = true;
   }
 
   const cells = pattern ? caseCells(pattern) : patternCells();
@@ -135,19 +190,43 @@ function render(): void {
   grid.innerHTML = cells.join("") + `<div class="cell blank"></div>`.repeat(blanks);
 }
 
+function quizHtml(): string {
+  if (!quiz) return "";
+  const entry = caseById(set, quiz.caseId);
+  const label = entry ? caseLabel(set, entry) : quiz.caseId;
+  const sides = colliding(casesFor(set).map((item) => item.id), set).has(quiz.caseId);
+  const face = faceHtml(faces.get(`${set}:${quiz.caseId}`), set, `q-${set}-${quiz.caseId}`, sides);
+  const options = quiz.options
+    .map((option) => {
+      const mark = quiz?.picked
+        ? option.id === quiz.caseId
+          ? " hit"
+          : option.id === quiz.picked
+            ? " miss"
+            : ""
+        : "";
+      return `<button type="button" class="opt${mark}" data-opt="${option.id}"><p>${option.moves}</p></button>`;
+    })
+    .join("");
+  return `<div class="quiz"><div class="quiz-face">${face}<span>${label}</span></div><div class="quiz-opts">${options}</div></div>`;
+}
+
 function patternCells(): string[] {
+  const samples = patternsFor(set).map((pattern) => pattern.ids[0]);
+  const shared = colliding(samples, set);
   return patternsFor(set).map((pattern) => {
     const sample = pattern.ids[0];
-    const face = faceHtml(faces.get(`${set}:${sample}`), set, `p-${set}-${pattern.id}`);
+    const face = faceHtml(faces.get(`${set}:${sample}`), set, `p-${set}-${pattern.id}`, shared.has(sample));
     return `<button type="button" class="cell" data-pattern="${pattern.id}">${face}<span>${pattern.name}</span></button>`;
   });
 }
 
 function caseCells(pattern: PatternDef): string[] {
+  const shared = colliding(pattern.ids, set);
   return pattern.ids.map((id) => {
     const entry = caseById(set, id);
     const label = entry ? caseLabel(set, entry) : id;
-    const face = faceHtml(faces.get(`${set}:${id}`), set, `c-${set}-${id}`);
+    const face = faceHtml(faces.get(`${set}:${id}`), set, `c-${set}-${id}`, shared.has(id));
     const idClass = set === "pll" ? " id" : "";
     return `<button type="button" class="cell" data-case="${id}">${face}<span class="${idClass.trim()}">${label}</span></button>`;
   });
@@ -155,6 +234,21 @@ function caseCells(pattern: PatternDef): string[] {
 
 app.addEventListener("click", (event) => {
   const target = event.target as Element;
+  if (quiz && target.closest("#grid")) {
+    const option = target.closest<HTMLElement>("[data-opt]");
+    if (!quiz.picked && option?.dataset.opt) {
+      quiz.picked = option.dataset.opt;
+      quizMarkAt = performance.now();
+      render();
+      return;
+    }
+    if (quiz.picked) {
+      if (performance.now() - quizMarkAt < 350) return;
+      ask();
+      render();
+    }
+    return;
+  }
   if (target.closest("#alg")) {
     if (target.closest(".alg-card") && !target.closest(".close")) return;
     caseId = null;
@@ -172,12 +266,23 @@ app.addEventListener("click", (event) => {
     return;
   }
   if (!target.closest("#menu")) setMenu(false);
+  if (target.closest("[data-mode='quiz']")) {
+    if (quiz) quiz = null;
+    else {
+      patternId = null;
+      caseId = null;
+      ask(null);
+    }
+    render();
+    return;
+  }
   if (target.closest("[data-set]")) {
     const next = target.closest<HTMLElement>("[data-set]")!.dataset.set;
     if (next !== "oll" && next !== "pll") return;
     set = next;
     patternId = null;
     caseId = null;
+    if (quiz) ask(null);
     render();
     return;
   }
@@ -203,6 +308,11 @@ app.addEventListener("click", (event) => {
 
 addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
+  if (quiz) {
+    quiz = null;
+    render();
+    return;
+  }
   if (!alg.hidden) {
     caseId = null;
     render();
@@ -211,7 +321,10 @@ addEventListener("keydown", (event) => {
   setMenu(false);
 });
 
-addEventListener("resize", fitAlg);
+addEventListener("resize", () => {
+  fitAlg();
+  fitOpts();
+});
 
 function checkTaxonomy(): void {
   const ollIds = OLL.map((entry) => entry.id);

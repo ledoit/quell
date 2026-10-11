@@ -1,4 +1,4 @@
-import type { LlStickers } from "./ll";
+import type { Hue, LlStickers } from "./ll";
 
 const c0 = 14.7;
 const c1 = 50;
@@ -71,10 +71,30 @@ function tiles(on: boolean[]): string {
   return on.map((lit) => `<i class="${lit ? "on" : ""}"></i>`).join("");
 }
 
-/** Top face only. OLL is yellow against empty. PLL is yellow plus the perm arrows. */
-export function faceHtml(ll: LlStickers | undefined, set: "oll" | "pll", markerKey: string): string {
+function hueTiles(row: Hue[]): string {
+  return row.map((hue) => `<i class="h-${hue}"></i>`).join("");
+}
+
+function sides(ll: LlStickers): string {
+  return `<span class="side n">${hueTiles(ll.b)}</span><span class="side w">${hueTiles(ll.l)}</span><span class="side e">${hueTiles(ll.r)}</span><span class="side s">${hueTiles(ll.f)}</span>`;
+}
+
+/** Top face. OLL is yellow against empty. PLL adds perm arrows. Sides appear when the top view is shared. */
+export function faceHtml(
+  ll: LlStickers | undefined,
+  set: "oll" | "pll",
+  markerKey: string,
+  withSides = false,
+): string {
   if (!ll) return `<div class="face">${tiles(Array(9).fill(false))}</div>`;
-  if (set === "oll") return `<div class="face">${tiles(ll.u.map((hue) => hue === "Y"))}</div>`;
+  const sided = withSides ? " sided" : "";
+  const ring = withSides ? sides(ll) : "";
+  if (set === "oll") {
+    const cubies = `<span class="cubies">${tiles(ll.u.map((hue) => hue === "Y"))}</span>`;
+    return `<div class="face${sided}">${ring}${withSides ? cubies : tiles(ll.u.map((hue) => hue === "Y"))}</div>`;
+  }
   const marker = `mk-${markerKey.replace(/[^a-z0-9]/gi, "")}`;
-  return `<div class="face perm">${tiles(Array(9).fill(true))}<svg viewBox="0 0 100 100" aria-hidden="true"><defs><marker id="${marker}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M 0 1.2 L 9 5 L 0 8.8 z" fill="currentColor"/></marker></defs>${arrowMarkup(ll.edgePerm, edgePt, marker, 9)}${arrowMarkup(ll.cornerPerm, cornerPt, marker, 11)}</svg></div>`;
+  const arrows = `<svg viewBox="0 0 100 100" aria-hidden="true"><defs><marker id="${marker}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M 0 1.2 L 9 5 L 0 8.8 z" fill="currentColor"/></marker></defs>${arrowMarkup(ll.edgePerm, edgePt, marker, 9)}${arrowMarkup(ll.cornerPerm, cornerPt, marker, 11)}</svg>`;
+  const cubies = `<span class="cubies">${tiles(Array(9).fill(true))}${arrows}</span>`;
+  return `<div class="face perm${sided}">${ring}${withSides ? cubies : `${tiles(Array(9).fill(true))}${arrows}`}</div>`;
 }
