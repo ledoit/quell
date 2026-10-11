@@ -25,3 +25,19 @@ OLL, sixteen, every case in one bucket: Dot 1–4 and 17–20; Line 51, 52, 55, 
 PLL, thirteen letters: A Aa Ab; E; F; G Ga–Gd; H; J Ja Jb; N Na Nb; R Ra Rb; T; U Ua Ub; V; Y; Z. A one-case letter still opens the case grid.
 
 Case labels read `OLL 18` and `Ja`. Tapping a case marks it. It does not open a third screen.
+
+## Addendum — 2026-10-11
+
+**Status:** Signed in chat. Same window, same Soft and Hard. This does not replace the grid.
+
+**Job.** Use the SpeedCubeDB 3x3 standard algorithm, in their notation, for each OLL and PLL. When two cases in view share a top face, draw the side stickers so the case can be told apart. Quiz is an infinite multiple-choice drill: one case, four algorithms, and the other three are the closest algorithms by shared triggers (sexy, sledge, sune, and the rest).
+
+**Surface.** The same full-window page. Quiz replaces the grid; it is not a second page.
+
+## Steal
+
+- [Buffer onboarding choices](https://mobbin.com/screens/c24d2ae8-52a1-4465-a510-7aa05fdbe5c3) — one question, the choices are the page, one tap answers.
+
+## Kill
+
+A score, a timer, a continue button, a fifth option, search, accounts. Names stays out.

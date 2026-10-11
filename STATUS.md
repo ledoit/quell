@@ -1,7 +1,7 @@
 # Quell — Status
 
-**Version:** 0.9.0  
-**As of:** 2026-10-06  
+**Version:** 0.10.0  
+**As of:** 2026-10-11  
 **Checkout:** `ivory/Stonehenge/Game/Quell` on `ledoit/quell-soft-hard`
 
 ## This cut
@@ -9,6 +9,8 @@
 Signed 2026-10-05. Soft and Hard both ship. Names does not.
 
 One window. OLL patterns or PLL letters. A pattern opens its cases. A case opens that alg. The menu switches Soft and Hard.
+
+Algorithms are the SpeedCubeDB 3x3 standard. Cases that share a top face show their side stickers. Quiz is an infinite four-choice drill; the other three algorithms are the nearest by shared triggers.
 
 ## Not this cut
 
