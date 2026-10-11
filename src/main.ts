@@ -1,4 +1,3 @@
-import { Alg } from "cubing/alg";
 import { OLL } from "./data/oll";
 import { PLL } from "./data/pll";
 import { faceHtml } from "./face";
@@ -6,6 +5,7 @@ import { lastLayer, type LlStickers } from "./ll";
 import { findPattern, patternsFor, type PatternDef } from "./patterns";
 import { anotherCase, quizOptions, type QuizOption } from "./quiz";
 import "./style.css";
+import { caseSetup, verifyCases } from "./truth";
 import type { CaseDef, SetId } from "./types";
 
 type Look = "soft" | "hard";
@@ -41,32 +41,6 @@ function readLook(): Look {
   } catch {
     return "soft";
   }
-}
-
-function setupAlg(moves: string): string {
-  const flat = moves.replace(/[()]/g, " ").replace(/2'/g, "2").replace(/\s+/g, " ").trim();
-  return new Alg(flat).invert().simplify({ cancel: true }).toString();
-}
-
-function viewKey(ll: LlStickers | undefined, current: SetId): string {
-  if (!ll) return "";
-  const top = ll.u.map((hue) => (hue === "Y" ? "Y" : ".")).join("");
-  if (current !== "pll") return top;
-  return `${top}:${ll.edgePerm.join(",")}:${ll.cornerPerm.join(",")}`;
-}
-
-function colliding(ids: string[], current: SetId): Set<string> {
-  const keys = ids.map((id) => viewKey(faces.get(`${current}:${id}`), current));
-  const counts = new Map<string, number>();
-  for (const key of keys) {
-    if (!key) continue;
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  const hit = new Set<string>();
-  ids.forEach((id, index) => {
-    if ((counts.get(keys[index]) ?? 0) > 1) hit.add(id);
-  });
-  return hit;
 }
 
 function ask(avoid: string | null = quiz?.caseId ?? null): void {
@@ -194,8 +168,7 @@ function quizHtml(): string {
   if (!quiz) return "";
   const entry = caseById(set, quiz.caseId);
   const label = entry ? caseLabel(set, entry) : quiz.caseId;
-  const sides = colliding(casesFor(set).map((item) => item.id), set).has(quiz.caseId);
-  const face = faceHtml(faces.get(`${set}:${quiz.caseId}`), set, `q-${set}-${quiz.caseId}`, sides);
+  const face = faceHtml(faces.get(`${set}:${quiz.caseId}`), set, `q-${set}-${quiz.caseId}`);
   const options = quiz.options
     .map((option) => {
       const mark = quiz?.picked
@@ -212,21 +185,18 @@ function quizHtml(): string {
 }
 
 function patternCells(): string[] {
-  const samples = patternsFor(set).map((pattern) => pattern.ids[0]);
-  const shared = colliding(samples, set);
   return patternsFor(set).map((pattern) => {
     const sample = pattern.ids[0];
-    const face = faceHtml(faces.get(`${set}:${sample}`), set, `p-${set}-${pattern.id}`, shared.has(sample));
+    const face = faceHtml(faces.get(`${set}:${sample}`), set, `p-${set}-${pattern.id}`);
     return `<button type="button" class="cell" data-pattern="${pattern.id}">${face}<span>${pattern.name}</span></button>`;
   });
 }
 
 function caseCells(pattern: PatternDef): string[] {
-  const shared = colliding(pattern.ids, set);
   return pattern.ids.map((id) => {
     const entry = caseById(set, id);
     const label = entry ? caseLabel(set, entry) : id;
-    const face = faceHtml(faces.get(`${set}:${id}`), set, `c-${set}-${id}`, shared.has(id));
+    const face = faceHtml(faces.get(`${set}:${id}`), set, `c-${set}-${id}`);
     const idClass = set === "pll" ? " id" : "";
     return `<button type="button" class="cell" data-case="${id}">${face}<span class="${idClass.trim()}">${label}</span></button>`;
   });
@@ -347,7 +317,7 @@ async function loadFaces(): Promise<void> {
   ];
   await Promise.all(
     jobs.map(async ({ set: current, entry }) => {
-      const ll = await lastLayer(setupAlg(entry.algs[0].moves));
+      const ll = await lastLayer(caseSetup(entry.algs[0].moves));
       faces.set(`${current}:${entry.id}`, ll);
     }),
   );
@@ -356,8 +326,11 @@ async function loadFaces(): Promise<void> {
 
 checkTaxonomy();
 applyLook(look);
-render();
-void loadFaces();
+void (async () => {
+  await verifyCases();
+  render();
+  await loadFaces();
+})();
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {

@@ -1,11 +1,12 @@
 {
   "name": "quell",
   "private": true,
-  "version": "0.10.0",
+  "version": "0.11.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "check": "node scripts/check.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

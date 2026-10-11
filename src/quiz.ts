@@ -14,7 +14,7 @@ function distractors(pool: CaseDef[], answer: CaseDef, count: number): CaseDef[]
 }
 
 export function quizOptions(pool: CaseDef[], answer: CaseDef): QuizOption[] {
-  const options = [answer, ...distractors(pool, answer, 3)].map((entry) => ({
+  const options = [answer, ...distractors(pool, answer, 2)].map((entry) => ({
     id: entry.id,
     moves: entry.algs[0]?.moves ?? "",
   }));

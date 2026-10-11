@@ -6,7 +6,7 @@ Soft and Hard are the two looks. The menu switches them. Names is not in the pro
 
 Tap outside the alg to come back. On Hard, Close does the same. The name in the corner comes back to the grid.
 
-Algorithms are the SpeedCubeDB 3x3 standard, in their notation. Quiz drills one case at a time. The other choices are the closest algorithms.
+Algorithms are the SpeedCubeDB 3x3 standard, in their notation, with cube rotations written out so the case matches the moves. Every case shows its side stickers. Quiz drills one case at a time, three algorithms stacked. The other choices are the closest algorithms.
 
 ## Live
 
