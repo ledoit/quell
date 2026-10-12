@@ -4,18 +4,17 @@ export type PatternDef = {
   ids: string[];
 };
 
-/** Sixteen OLL shapes. Every case sits in one of them. */
+/** Fifteen OLL shapes. Every case sits in one of them. */
 export const OLL_PATTERNS: PatternDef[] = [
   { id: "dot", name: "Dot", ids: ["1", "2", "3", "4", "17", "18", "19", "20"] },
   { id: "line", name: "Line", ids: ["51", "52", "55", "56"] },
   { id: "cross", name: "Cross", ids: ["21", "22", "23", "24", "25", "26", "27"] },
   { id: "corners", name: "Corners", ids: ["28", "57"] },
-  { id: "small-l", name: "Small L", ids: ["47", "48"] },
-  { id: "big-l", name: "Big L", ids: ["49", "50", "53", "54"] },
+  { id: "small-l", name: "Small L", ids: ["47", "48", "49", "50", "53", "54"] },
+  { id: "big-l", name: "Big L", ids: ["13", "14", "15", "16"] },
   { id: "lightning", name: "Lightning", ids: ["7", "8", "11", "12"] },
   { id: "z", name: "Z", ids: ["39", "40"] },
   { id: "fish", name: "Fish", ids: ["9", "10", "35", "37"] },
-  { id: "knight", name: "Knight", ids: ["13", "14", "15", "16"] },
   { id: "awkward", name: "Awkward", ids: ["29", "30", "41", "42"] },
   { id: "w", name: "W", ids: ["36", "38"] },
   { id: "p", name: "P", ids: ["31", "32", "43", "44"] },
