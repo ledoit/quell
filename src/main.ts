@@ -1,29 +1,36 @@
+import { effectKey, flatAlg, caseSetup } from "./alg";
 import { OLL } from "./data/oll";
 import { PLL } from "./data/pll";
 import { faceHtml } from "./face";
-import { caseArrangements, lastLayer, sideKey, type LlStickers } from "./ll";
+import { caseArrangements, cachedLayer, colorSchemes, lastLayer, recolor, sideKey, type LlStickers, type Scheme } from "./ll";
 import { findPattern, patternsFor, type PatternDef } from "./patterns";
 import { anotherCase, quizOptions, type QuizOption } from "./quiz";
+import { loadPresentations, presentationsFor } from "./setups";
 import "./style.css";
-import { caseSetup, flatAlg, verifyCases } from "./truth";
+import { verifyCases } from "./truth";
 import type { CaseDef, SetId } from "./types";
 
 type Look = "soft" | "hard";
+type SetupPrefs = Record<string, string>;
 
 const LOOK_KEY = "quell-look";
+const FACES_KEY = "quell-faces";
+const SETUP_KEY = "quell-setup";
 
 const app = document.querySelector<HTMLElement>("#app")!;
 const grid = document.querySelector<HTMLElement>("#grid")!;
 const back = document.querySelector<HTMLButtonElement>("#back")!;
 const menu = document.querySelector<HTMLElement>("#menu")!;
 const menuBtn = document.querySelector<HTMLButtonElement>("#menu-btn")!;
+const facesBtn = document.querySelector<HTMLButtonElement>("#menu [data-faces]")!;
 const alg = document.querySelector<HTMLElement>("#alg")!;
 const who = alg.querySelector<HTMLElement>(".who")!;
-const movesEl = alg.querySelector<HTMLElement>(".moves")!;
+const algFace = alg.querySelector<HTMLElement>(".alg-face")!;
+const setupsEl = alg.querySelector<HTMLElement>(".setups")!;
 
-const faces = new Map<string, LlStickers>();
 const arrangements = new Map<string, LlStickers[]>();
 const shown = new Map<string, LlStickers>();
+const shownFlat = new Map<string, string>();
 
 type Quiz = { caseId: string; options: QuizOption[]; picked: string | null };
 
@@ -31,13 +38,19 @@ let set: SetId = "oll";
 let patternId: string | null = null;
 let caseId: string | null = null;
 let look: Look = readLook();
+let facesOn = readFaces();
+let setupPrefs: SetupPrefs = readSetups();
+let schemes: Scheme[] = [];
 let quiz: Quiz | null = null;
 let quizMarkAt = 0;
 let viewToken = 0;
 let rolledToken = -1;
+let schemeStamp = -1;
+const schemeOf = new Map<string, number>();
 
 document.documentElement.dataset.look = look;
 app.dataset.look = look;
+syncFaces();
 
 function readLook(): Look {
   try {
@@ -47,42 +60,135 @@ function readLook(): Look {
   }
 }
 
+function readFaces(): boolean {
+  try {
+    return localStorage.getItem(FACES_KEY) === "on";
+  } catch {
+    return false;
+  }
+}
+
+function readSetups(): SetupPrefs {
+  try {
+    const raw = localStorage.getItem(SETUP_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object") return {};
+    const out: SetupPrefs = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (typeof value === "string") out[key] = value;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function writeSetups(): void {
+  try {
+    localStorage.setItem(SETUP_KEY, JSON.stringify(setupPrefs));
+  } catch {
+    /* private mode */
+  }
+}
+
 function ask(avoid: string | null = quiz?.caseId ?? null): void {
   const answer = anotherCase(casesFor(set), avoid);
-  quiz = { caseId: answer.id, options: quizOptions(casesFor(set), answer), picked: null };
+  quiz = {
+    caseId: answer.id,
+    options: quizOptions(casesFor(set), answer, (entry) => chosenMoves(set, entry.id)),
+    picked: null,
+  };
   viewToken += 1;
 }
 
-function faceOf(current: SetId, id: string): LlStickers | undefined {
-  return shown.get(`${current}:${id}`) ?? faces.get(`${current}:${id}`);
+function chosenMoves(current: SetId, id: string): string {
+  const entry = caseById(current, id);
+  const fallback = entry?.algs[0]?.moves ?? "";
+  const list = presentationsFor(current, id);
+  const stored = setupPrefs[`${current}:${id}`];
+  const hit = stored ? list.find((item) => item.key === stored) : undefined;
+  return hit?.moves ?? list[0]?.moves ?? fallback;
+}
+
+function bagKey(current: SetId, id: string, moves: string): string {
+  return `${current}:${id}:${flatAlg(moves)}`;
+}
+
+function visibleIds(): string[] {
+  if (quiz) return [quiz.caseId];
+  if (patternId) {
+    const pattern = findPattern(set, patternId);
+    return pattern ? pattern.ids : [];
+  }
+  return patternsFor(set).map((pattern) => pattern.ids[0]);
+}
+
+function baseFace(current: SetId, id: string): LlStickers | undefined {
+  const moves = chosenMoves(current, id);
+  const flat = flatAlg(moves);
+  const key = `${current}:${id}`;
+  const rolled = shown.get(key);
+  if (rolled && shownFlat.get(key) === flat) return rolled;
+  return cachedLayer(caseSetup(moves));
+}
+
+function paint(current: SetId, id: string, ll: LlStickers | undefined): LlStickers | undefined {
+  if (!ll || !facesOn) return ll;
+  const scheme = schemes[schemeOf.get(`${current}:${id}`) ?? 0];
+  return scheme ? recolor(ll, scheme) : ll;
+}
+
+function draw(current: SetId, id: string, marker: string): string {
+  return faceHtml(paint(current, id, baseFace(current, id)), current, marker, facesOn);
 }
 
 function roll(current: SetId, ids: string[]): void {
-  if (current !== "oll") return;
   for (const id of ids) {
-    const bag = arrangements.get(id);
-    if (!bag?.length) continue;
     const key = `${current}:${id}`;
-    const prev = shown.get(key);
+    if (current !== "oll") {
+      shown.delete(key);
+      shownFlat.delete(key);
+      continue;
+    }
+    const moves = chosenMoves(current, id);
+    const bag = arrangements.get(bagKey(current, id, moves));
+    if (!bag?.length) {
+      shown.delete(key);
+      shownFlat.delete(key);
+      continue;
+    }
+    const prev = shownFlat.get(key) === flatAlg(moves) ? shown.get(key) : undefined;
     const others = bag.filter((ll) => !prev || sideKey(ll) !== sideKey(prev));
     const pool = others.length ? others : bag;
     shown.set(key, pool[Math.floor(Math.random() * pool.length)]);
+    shownFlat.set(key, flatAlg(moves));
+  }
+}
+
+function rollSchemes(current: SetId, ids: string[]): void {
+  const count = schemes.length;
+  if (count < 2) return;
+  for (const id of ids) {
+    const key = `${current}:${id}`;
+    const prev = schemeOf.get(key);
+    let next = Math.floor(Math.random() * count);
+    if (next === prev) next = (next + 1 + Math.floor(Math.random() * (count - 1))) % count;
+    schemeOf.set(key, next);
   }
 }
 
 function rollView(): void {
-  if (rolledToken === viewToken) return;
-  rolledToken = viewToken;
-  if (quiz) {
-    roll(set, [quiz.caseId]);
-    return;
+  const ids = visibleIds();
+  if (rolledToken !== viewToken) {
+    rolledToken = viewToken;
+    schemeStamp = -1;
+    roll(set, ids);
   }
-  if (patternId) {
-    const pattern = findPattern(set, patternId);
-    if (pattern) roll(set, pattern.ids);
-    return;
+  if (facesOn && schemeStamp !== viewToken) {
+    schemeStamp = viewToken;
+    rollSchemes(set, ids);
   }
-  roll(set, patternsFor(set).map((pattern) => pattern.ids[0]));
 }
 
 function casesFor(current: SetId): CaseDef[] {
@@ -117,28 +223,26 @@ function gridFit(count: number): string {
   return "g16";
 }
 
-function fitOpts(): void {
-  for (const el of grid.querySelectorAll<HTMLElement>(".opt p")) {
+function fitLines(root: ParentNode, selector: string, widthRatio: number, heightRatio: number, floor: number): void {
+  for (const el of root.querySelectorAll<HTMLElement>(selector)) {
     const box = el.parentElement;
     if (!box || box.clientWidth < 20) continue;
-    let size = Math.min(box.clientWidth * 0.2, box.clientHeight * 0.34);
+    let size = Math.min(box.clientWidth * widthRatio, box.clientHeight * heightRatio);
     el.style.fontSize = `${size}px`;
-    while (size > 15 && (el.scrollHeight > box.clientHeight * 0.78 || el.scrollWidth > box.clientWidth * 0.94)) {
+    while (size > floor && (el.scrollHeight > box.clientHeight * 0.86 || el.scrollWidth > box.clientWidth * 0.94)) {
       size *= 0.92;
       el.style.fontSize = `${size}px`;
     }
   }
 }
 
-function fitAlg(): void {
-  if (alg.hidden || alg.clientWidth < 40) return;
-  let size = Math.min(alg.clientWidth * 0.078, alg.clientHeight * 0.2);
-  movesEl.style.fontSize = `${size}px`;
-  const maxH = alg.clientHeight * 0.62;
-  while (size > 18 && movesEl.scrollHeight > maxH) {
-    size *= 0.9;
-    movesEl.style.fontSize = `${size}px`;
-  }
+function fitOpts(): void {
+  fitLines(grid, ".opt p", 0.2, 0.34, 15);
+}
+
+function fitSetups(): void {
+  if (alg.hidden) return;
+  fitLines(alg, ".setup p", 0.075, 0.46, 13);
 }
 
 function setMenu(open: boolean): void {
@@ -160,7 +264,36 @@ function applyLook(next: Look): void {
   for (const button of menu.querySelectorAll<HTMLButtonElement>("[data-look]")) {
     button.classList.toggle("on", button.dataset.look === next);
   }
-  requestAnimationFrame(fitAlg);
+  requestAnimationFrame(fitSetups);
+}
+
+function syncFaces(): void {
+  facesBtn.classList.toggle("on", facesOn);
+  facesBtn.setAttribute("aria-pressed", facesOn ? "true" : "false");
+}
+
+function applyFaces(next: boolean): void {
+  facesOn = next;
+  syncFaces();
+  try {
+    localStorage.setItem(FACES_KEY, next ? "on" : "off");
+  } catch {
+    /* private mode */
+  }
+  if (next) schemeStamp = -1;
+  render();
+}
+
+function setupButtons(current: SetId, id: string): string {
+  const list = presentationsFor(current, id);
+  const chosen = effectKey(chosenMoves(current, id));
+  const rows = list.length ? list : [{ moves: chosenMoves(current, id), key: chosen, picture: "" }];
+  return rows
+    .map((item) => {
+      const on = item.key === chosen ? " on" : "";
+      return `<button type="button" class="setup${on}" data-setup="${encodeURIComponent(item.key)}"><p>${item.moves}</p></button>`;
+    })
+    .join("");
 }
 
 function render(): void {
@@ -186,11 +319,12 @@ function render(): void {
   }
 
   const selected = caseId ? caseById(set, caseId) : undefined;
-  if (pattern && selected) {
+  if (pattern && selected && caseId) {
     who.textContent = caseLabel(set, selected);
-    movesEl.textContent = selected.algs[0]?.moves ?? "";
+    algFace.innerHTML = draw(set, caseId, `a-${set}-${caseId}`);
+    setupsEl.innerHTML = setupButtons(set, caseId);
     alg.hidden = false;
-    requestAnimationFrame(() => requestAnimationFrame(fitAlg));
+    requestAnimationFrame(() => requestAnimationFrame(fitSetups));
   }
 
   const cells = pattern ? caseCells(pattern) : patternCells();
@@ -206,7 +340,7 @@ function quizHtml(): string {
   if (!quiz) return "";
   const entry = caseById(set, quiz.caseId);
   const label = entry ? caseLabel(set, entry) : quiz.caseId;
-  const face = faceHtml(faceOf(set, quiz.caseId), set, `q-${set}-${quiz.caseId}`);
+  const face = draw(set, quiz.caseId, `q-${set}-${quiz.caseId}`);
   const options = quiz.options
     .map((option) => {
       const mark = quiz?.picked
@@ -225,7 +359,7 @@ function quizHtml(): string {
 function patternCells(): string[] {
   return patternsFor(set).map((pattern) => {
     const sample = pattern.ids[0];
-    const face = faceHtml(faceOf(set, sample), set, `p-${set}-${pattern.id}`);
+    const face = draw(set, sample, `p-${set}-${pattern.id}`);
     return `<button type="button" class="cell" data-pattern="${pattern.id}">${face}<span>${pattern.name}</span></button>`;
   });
 }
@@ -234,10 +368,26 @@ function caseCells(pattern: PatternDef): string[] {
   return pattern.ids.map((id) => {
     const entry = caseById(set, id);
     const label = entry ? caseLabel(set, entry) : id;
-    const face = faceHtml(faceOf(set, id), set, `c-${set}-${id}`);
+    const face = draw(set, id, `c-${set}-${id}`);
     const idClass = set === "pll" ? " id" : "";
     return `<button type="button" class="cell" data-case="${id}">${face}<span class="${idClass.trim()}">${label}</span></button>`;
   });
+}
+
+async function selectSetup(id: string, key: string): Promise<void> {
+  const list = presentationsFor(set, id);
+  const picked = list.find((item) => item.key === key);
+  if (!picked) return;
+  setupPrefs[`${set}:${id}`] = picked.key;
+  writeSetups();
+  if (set === "oll") {
+    const setup = caseSetup(picked.moves);
+    arrangements.set(bagKey(set, id, picked.moves), await caseArrangements(setup, flatAlg(picked.moves)));
+  }
+  shown.delete(`${set}:${id}`);
+  shownFlat.delete(`${set}:${id}`);
+  roll(set, [id]);
+  render();
 }
 
 app.addEventListener("click", (event) => {
@@ -258,6 +408,11 @@ app.addEventListener("click", (event) => {
     return;
   }
   if (target.closest("#alg")) {
+    const setupBtn = target.closest<HTMLButtonElement>("[data-setup]");
+    if (setupBtn?.dataset.setup && caseId) {
+      void selectSetup(caseId, decodeURIComponent(setupBtn.dataset.setup));
+      return;
+    }
     if (target.closest(".alg-card") && !target.closest(".close")) return;
     caseId = null;
     render();
@@ -270,6 +425,11 @@ app.addEventListener("click", (event) => {
   const lookBtn = target.closest<HTMLButtonElement>("#menu [data-look]");
   if (lookBtn?.dataset.look === "soft" || lookBtn?.dataset.look === "hard") {
     applyLook(lookBtn.dataset.look);
+    setMenu(false);
+    return;
+  }
+  if (target.closest("#menu [data-faces]")) {
+    applyFaces(!facesOn);
     setMenu(false);
     return;
   }
@@ -336,7 +496,7 @@ addEventListener("keydown", (event) => {
 });
 
 addEventListener("resize", () => {
-  fitAlg();
+  fitSetups();
   fitOpts();
 });
 
@@ -361,21 +521,23 @@ async function loadFaces(): Promise<void> {
   ];
   await Promise.all(
     jobs.map(async ({ set: current, entry }) => {
-      const moves = entry.algs[0].moves;
+      const moves = chosenMoves(current, entry.id);
       const setup = caseSetup(moves);
-      const ll = await lastLayer(setup);
-      faces.set(`${current}:${entry.id}`, ll);
-      if (current === "oll") arrangements.set(entry.id, await caseArrangements(setup, flatAlg(moves)));
+      await lastLayer(setup);
+      if (current === "oll") arrangements.set(bagKey(current, entry.id, moves), await caseArrangements(setup, flatAlg(moves)));
     }),
   );
   rolledToken = -1;
+  schemeStamp = -1;
   render();
 }
 
 checkTaxonomy();
 applyLook(look);
 void (async () => {
+  schemes = await colorSchemes();
   await verifyCases();
+  await loadPresentations();
   render();
   await loadFaces();
 })();

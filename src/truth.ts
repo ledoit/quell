@@ -1,22 +1,15 @@
-import { Alg } from "cubing/alg";
 import { cube3x3x3 } from "cubing/puzzles";
+import { caseSetup, effectKey, flatAlg } from "./alg";
 import { CASE_LOCK } from "./data/lock";
 import { OLL } from "./data/oll";
 import { PLL } from "./data/pll";
-import { caseArrangements, lastLayer, yellowMask, type LlStickers } from "./ll";
+import { caseArrangements, colorSchemes, lastLayer, OPPOSITE, recolor, topMask, yellowMask, type Hue, type LlStickers } from "./ll";
+import { loadPresentations, mirrorMoves, presentationBoards } from "./setups";
 import type { CaseDef, SetId } from "./types";
 
+export { caseSetup, flatAlg };
+
 const ROTATION = /^[xyz](?:2|')?$/;
-
-/** Moves cubing can apply. Parentheses are grouping; `2'` is a half turn. */
-export function flatAlg(moves: string): string {
-  return moves.replace(/[()]/g, " ").replace(/2'/g, "2").replace(/\s+/g, " ").trim();
-}
-
-/** Inverse of the stored alg, which is the case the diagram draws. */
-export function caseSetup(moves: string): string {
-  return new Alg(flatAlg(moves)).invert().simplify({ cancel: true }).toString();
-}
 
 type OrbitData = { pieces: ArrayLike<number>; orientation: ArrayLike<number> };
 
@@ -133,5 +126,68 @@ export async function verifyCases(): Promise<void> {
         throw new Error(`${a.id} and ${b.id} are the same case up to a U turn`);
       }
     }
+  }
+
+  const schemes = await colorSchemes();
+  const hues: Hue[] = ["Y", "W", "G", "B", "R", "O"];
+  if (schemes.length !== 24) throw new Error("expected 24 color schemes");
+  if (!schemes.some((scheme) => hues.every((hue) => scheme[hue] === hue))) throw new Error("standard grip is missing");
+  if (!schemes.some((scheme) => scheme.Y !== "Y")) throw new Error("every grip keeps yellow on top");
+  if (!schemes.some((scheme) => scheme.Y === "Y" && scheme.G !== "G")) throw new Error("yellow-up grips never change the front");
+  const shapeOf = new Map(shapes.map((shape) => [shape.id, shape.keys]));
+  await loadPresentations();
+  const boards = presentationBoards();
+  let angled = 0;
+  for (const [id, list] of boards) {
+    if (!list.length) throw new Error(`${id} has no setup`);
+    const pictures = new Set<string>();
+    for (const item of list) {
+      pictures.add(item.picture);
+      for (const token of flatAlg(item.moves).split(" ")) {
+        if (ROTATION.test(token)) throw new Error(`${id} setup still has a cube rotation`);
+      }
+      const picture = cube(yellow.applyAlg(caseSetup(item.moves)));
+      if (stateKey(picture.applyAlg(flatAlg(item.moves))) !== solvedKey) {
+        throw new Error(`${id} setup does not solve the case it draws`);
+      }
+      const keys = shapeOf.get(id);
+      if (!keys?.has(layerKey(picture, id.startsWith("oll:")))) {
+        throw new Error(`${id} setup is a different case`);
+      }
+    }
+    if (pictures.size > 1) angled += 1;
+  }
+  if (angled < 1) throw new Error("no case has another top-face start");
+  const sune = OLL.find((entry) => entry.id === "27");
+  const leftSune = effectKey(mirrorMoves(sune?.algs[0]?.moves ?? ""));
+  let landed = "none";
+  for (const [id, list] of boards) {
+    if (list.some((item) => item.key === leftSune)) landed = id;
+  }
+  if (landed !== "oll:26") throw new Error(`left sune landed on ${landed}`);
+  const ua = PLL.find((entry) => entry.id === "Ua");
+  const leftUa = effectKey(mirrorMoves(ua?.algs[0]?.moves ?? ""));
+  const pllHome = [...boards.entries()].filter(([, list]) => list.some((item) => item.key === leftUa)).map(([id]) => id);
+  if (!pllHome.some((id) => id === "pll:Ua" || id === "pll:Ub")) {
+    throw new Error(`left Ua landed on ${pllHome.join(", ") || "none"}`);
+  }
+  for (const entry of OLL) {
+    const variants = await caseArrangements(caseSetup(entry.algs[0].moves), flatAlg(entry.algs[0].moves));
+    for (const variant of variants) {
+      for (const scheme of schemes) {
+        const painted = recolor(variant, scheme);
+        if (topMask(painted) !== yellowMask(variant)) throw new Error(`oll:${entry.id} recolor moved the case`);
+        if (painted.u.some((hue) => hue === OPPOSITE[painted.u[4]])) {
+          throw new Error(`oll:${entry.id} recolor puts the opposite color on top`);
+        }
+      }
+    }
+  }
+  if (!ua) throw new Error("Ua is missing");
+  const uaPicture = await lastLayer(caseSetup(ua.algs[0].moves));
+  for (const scheme of schemes) {
+    const painted = recolor(uaPicture, scheme);
+    if (painted.u.some((hue) => hue !== painted.u[4])) throw new Error("Ua recolor split the top face");
+    if (painted.edgePerm.join(",") !== uaPicture.edgePerm.join(",")) throw new Error("Ua recolor moved a piece");
   }
 }

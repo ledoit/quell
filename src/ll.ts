@@ -142,6 +142,74 @@ export function sideKey(ll: LlStickers): string {
   return [ll.f, ll.r, ll.b, ll.l].map((row) => row.join("")).join("/");
 }
 
+/** Stickers that match the top-face color. Yellow is that color in the standard grip. */
+export function topMask(ll: LlStickers): string {
+  const top = ll.u[4];
+  const mark = (row: Hue[]) => row.map((hue) => (hue === top ? "Y" : ".")).join("");
+  return [ll.u, ll.f, ll.r, ll.b, ll.l].map(mark).join("/");
+}
+
+export const OPPOSITE: Record<Hue, Hue> = { Y: "W", W: "Y", G: "B", B: "G", R: "O", O: "R" };
+
+export type Scheme = Record<Hue, Hue>;
+
+const TILTS = ["", "x", "x2", "x'", "z", "z'"] as const;
+const SPINS = ["", "y", "y2", "y'"] as const;
+
+let schemePromise: Promise<Scheme[]> | null = null;
+
+function faceCenters(pattern: Pattern): Hue[] {
+  return [0, 1, 2, 3, 4, 5].map((index) => sticker(pattern, "CENTERS", index, 0));
+}
+
+/** The 24 ways to hold a solved cube. Each map replaces the standard colors. */
+export function colorSchemes(): Promise<Scheme[]> {
+  schemePromise ??= buildSchemes();
+  return schemePromise;
+}
+
+async function buildSchemes(): Promise<Scheme[]> {
+  const kp = await kpuzzle();
+  const home = kp.defaultPattern().applyAlg("z2");
+  const homeHue = faceCenters(home);
+  const out: Scheme[] = [];
+  const seen = new Set<string>();
+  const order: Hue[] = ["Y", "W", "G", "B", "R", "O"];
+  for (const tilt of TILTS) {
+    for (const spin of SPINS) {
+      const alg = [tilt, spin].filter(Boolean).join(" ");
+      const turned = kp.defaultPattern().applyAlg(alg ? `z2 ${alg}` : "z2");
+      const nextHue = faceCenters(turned);
+      const scheme = {} as Scheme;
+      for (let index = 0; index < homeHue.length; index++) scheme[homeHue[index]] = nextHue[index];
+      const values = order.map((hue) => scheme[hue]);
+      if (new Set(values).size !== order.length) throw new Error(`color scheme ${alg || "home"} is not a recoloring`);
+      for (const hue of order) {
+        if (scheme[OPPOSITE[hue]] !== OPPOSITE[scheme[hue]]) throw new Error(`color scheme ${alg || "home"} splits opposite colors`);
+      }
+      const sig = values.join("");
+      if (seen.has(sig)) throw new Error(`color scheme ${alg || "home"} repeats another grip`);
+      seen.add(sig);
+      out.push(scheme);
+    }
+  }
+  if (out.length !== 24) throw new Error("expected 24 color schemes");
+  return out;
+}
+
+export function recolor(ll: LlStickers, scheme: Scheme): LlStickers {
+  const row = (hues: Hue[]) => hues.map((hue) => scheme[hue]);
+  return {
+    u: row(ll.u),
+    f: row(ll.f),
+    r: row(ll.r),
+    b: row(ll.b),
+    l: row(ll.l),
+    edgePerm: ll.edgePerm,
+    cornerPerm: ll.cornerPerm,
+  };
+}
+
 function permutations(items: number[]): number[][] {
   if (items.length <= 1) return [items.slice()];
   const out: number[][] = [];
@@ -269,6 +337,10 @@ export async function caseArrangements(setup: string, solve: string): Promise<Ll
   if (!out.length) throw new Error("case has no drawable arrangement");
   arrangementCache.set(key, out);
   return out;
+}
+
+export function cachedLayer(moves: string): LlStickers | undefined {
+  return llCache.get(moves.replace(/\s+/g, " ").trim());
 }
 
 export async function lastLayer(moves: string): Promise<LlStickers> {

@@ -3,20 +3,29 @@ import type { CaseDef } from "./types";
 
 export type QuizOption = { id: string; moves: string };
 
-function distractors(pool: CaseDef[], answer: CaseDef, count: number): CaseDef[] {
-  const moves = answer.algs[0]?.moves ?? "";
+function distractors(
+  pool: CaseDef[],
+  answer: CaseDef,
+  count: number,
+  movesOf: (entry: CaseDef) => string,
+): CaseDef[] {
+  const moves = movesOf(answer);
   return pool
-    .filter((entry) => entry.id !== answer.id && (entry.algs[0]?.moves ?? "") !== moves)
-    .map((entry) => ({ entry, score: closeness(moves, entry.algs[0]?.moves ?? "") }))
+    .filter((entry) => entry.id !== answer.id && movesOf(entry) !== moves)
+    .map((entry) => ({ entry, score: closeness(moves, movesOf(entry)) }))
     .sort((a, b) => b.score - a.score)
     .slice(0, count)
     .map((row) => row.entry);
 }
 
-export function quizOptions(pool: CaseDef[], answer: CaseDef): QuizOption[] {
-  const options = [answer, ...distractors(pool, answer, 2)].map((entry) => ({
+export function quizOptions(
+  pool: CaseDef[],
+  answer: CaseDef,
+  movesOf: (entry: CaseDef) => string = (entry) => entry.algs[0]?.moves ?? "",
+): QuizOption[] {
+  const options = [answer, ...distractors(pool, answer, 2, movesOf)].map((entry) => ({
     id: entry.id,
-    moves: entry.algs[0]?.moves ?? "",
+    moves: movesOf(entry),
   }));
   for (let i = options.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
