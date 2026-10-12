@@ -1,4 +1,4 @@
-const CACHE = "quell-v8";
+const CACHE = "quell-v9";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
