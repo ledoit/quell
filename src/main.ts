@@ -43,6 +43,8 @@ let setupPrefs: SetupPrefs = readSetups();
 let schemes: Scheme[] = [];
 let quiz: Quiz | null = null;
 let quizMarkAt = 0;
+let quizAdvance = 0;
+const CORRECT_BEAT = 640;
 let viewToken = 0;
 let rolledToken = -1;
 let schemeStamp = -1;
@@ -92,7 +94,13 @@ function writeSetups(): void {
   }
 }
 
+function stopQuizAdvance(): void {
+  window.clearTimeout(quizAdvance);
+  quizAdvance = 0;
+}
+
 function ask(avoid: string | null = quiz?.caseId ?? null): void {
+  stopQuizAdvance();
   const answer = anotherCase(casesFor(set), avoid);
   quiz = {
     caseId: answer.id,
@@ -395,12 +403,22 @@ app.addEventListener("click", (event) => {
   if (quiz && target.closest("#grid")) {
     const option = target.closest<HTMLElement>("[data-opt]");
     if (!quiz.picked && option?.dataset.opt) {
-      quiz.picked = option.dataset.opt;
+      const picked = option.dataset.opt;
+      quiz.picked = picked;
       quizMarkAt = performance.now();
       render();
+      if (picked === quiz.caseId) {
+        const marked = quiz;
+        stopQuizAdvance();
+        quizAdvance = window.setTimeout(() => {
+          if (quiz !== marked) return;
+          ask();
+          render();
+        }, CORRECT_BEAT);
+      }
       return;
     }
-    if (quiz.picked) {
+    if (quiz.picked && quiz.picked !== quiz.caseId) {
       if (performance.now() - quizMarkAt < 350) return;
       ask();
       render();
@@ -436,6 +454,7 @@ app.addEventListener("click", (event) => {
   if (!target.closest("#menu")) setMenu(false);
   if (target.closest("[data-mode='quiz']")) {
     if (quiz) {
+      stopQuizAdvance();
       quiz = null;
       viewToken += 1;
     } else {
@@ -482,6 +501,7 @@ app.addEventListener("click", (event) => {
 addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
   if (quiz) {
+    stopQuizAdvance();
     quiz = null;
     viewToken += 1;
     render();

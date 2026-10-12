@@ -50,7 +50,7 @@ A score, a timer, a continue button, a fifth option, search, accounts. Names sta
 
 A case opens on its standard algorithm. The other rows are that algorithm from another top-face start, or the left-hand mirror of an algorithm already in the set, when that version solves this case. One of them is the default. The diagram matches the one that is on. Two algorithms are not shown at once.
 
-A quiz tap turns the chosen row red when it is wrong, and the right row green either way.
+A correct quiz tap turns that row green, and the next case follows. A wrong tap turns that row red and the right row green, and the next case waits for another tap.
 
 ## Kill
 
