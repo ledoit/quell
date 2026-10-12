@@ -84,18 +84,19 @@ function blankSides(): string {
   return `<span class="side n">${row}</span><span class="side w">${row}</span><span class="side e">${row}</span><span class="side s">${row}</span>`;
 }
 
-/** Top face plus the side stickers. OLL is yellow against empty. PLL adds perm arrows. */
-export function faceHtml(ll: LlStickers | undefined, set: "oll" | "pll", markerKey: string): string {
+/** Top face plus the side stickers. OLL is yellow against empty until Faces, which draws every sticker. PLL adds perm arrows. */
+export function faceHtml(ll: LlStickers | undefined, set: "oll" | "pll", markerKey: string, full = false): string {
+  const tone = full ? " full" : "";
   if (!ll) {
     const cubies = `<span class="cubies">${tiles(Array(9).fill(false))}</span>`;
     return `<div class="face sided">${blankSides()}${cubies}</div>`;
   }
   if (set === "oll") {
-    const cubies = `<span class="cubies">${tiles(ll.u.map((hue) => hue === "Y"))}</span>`;
-    return `<div class="face sided">${sides(ll)}${cubies}</div>`;
+    const cubies = `<span class="cubies">${full ? hueTiles(ll.u) : tiles(ll.u.map((hue) => hue === "Y"))}</span>`;
+    return `<div class="face sided${tone}">${sides(ll)}${cubies}</div>`;
   }
   const marker = `mk-${markerKey.replace(/[^a-z0-9]/gi, "")}`;
   const arrows = `<svg viewBox="0 0 100 100" aria-hidden="true"><defs><marker id="${marker}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M 0 1.2 L 9 5 L 0 8.8 z" fill="currentColor"/></marker></defs>${arrowMarkup(ll.edgePerm, edgePt, marker, 9)}${arrowMarkup(ll.cornerPerm, cornerPt, marker, 11)}</svg>`;
-  const cubies = `<span class="cubies">${tiles(Array(9).fill(true))}${arrows}</span>`;
-  return `<div class="face perm sided">${sides(ll)}${cubies}</div>`;
+  const cubies = `<span class="cubies">${full ? hueTiles(ll.u) : tiles(Array(9).fill(true))}${arrows}</span>`;
+  return `<div class="face perm sided${tone}">${sides(ll)}${cubies}</div>`;
 }

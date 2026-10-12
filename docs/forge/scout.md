@@ -41,3 +41,17 @@ Case labels read `OLL 18` and `Ja`. Tapping a case marks it. It does not open a 
 ## Kill
 
 A score, a timer, a continue button, a fifth option, search, accounts. Names stays out.
+
+## Addendum — 2026-10-12
+
+**Status:** Signed in chat. Same window, same Soft and Hard.
+
+**Job.** Faces sits beside Soft and Hard. Off, an OLL is still yellow against empty. On, the cube is a legal grip: the top color is not stuck on yellow, the side colors follow that grip, and an OLL's top face is the real stickers, including the ones that are not the top color. PLL uses the same grip. The angle still matches the algorithm.
+
+A case opens on its standard algorithm. The other rows are that algorithm from another top-face start, or the left-hand mirror of an algorithm already in the set, when that version solves this case. One of them is the default. The diagram matches the one that is on. Two algorithms are not shown at once.
+
+A quiz tap turns the chosen row red when it is wrong, and the right row green either way.
+
+## Kill
+
+A score, a timer, a continue button, a fifth option, search, accounts. Names stays out.
