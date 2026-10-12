@@ -20,7 +20,7 @@ Scroll. A second page. Search, accounts, alg cards, 3D, queues, sidebars, wizard
 
 ## Patterns
 
-OLL, sixteen, every case in one bucket: Dot 1–4 and 17–20; Line 51, 52, 55, 56; Cross 21–27; Corners 28, 57; Small L 47, 48; Big L 49, 50, 53, 54; Lightning 7, 8, 11, 12; Z 39, 40; Fish 9, 10, 35, 37; Knight 13–16; Awkward 29, 30, 41, 42; W 36, 38; P 31, 32, 43, 44; T 33, 45; C 34, 46; Square 5, 6.
+OLL, fifteen, every case in one bucket: Dot 1–4 and 17–20; Line 51, 52, 55, 56; Cross 21–27; Corners 28, 57; Small L 47–50, 53, 54; Big L 13–16; Lightning 7, 8, 11, 12; Z 39, 40; Fish 9, 10, 35, 37; Awkward 29, 30, 41, 42; W 36, 38; P 31, 32, 43, 44; T 33, 45; C 34, 46; Square 5, 6.
 
 PLL, thirteen letters: A Aa Ab; E; F; G Ga–Gd; H; J Ja Jb; N Na Nb; R Ra Rb; T; U Ua Ub; V; Y; Z. A one-case letter still opens the case grid.
 
