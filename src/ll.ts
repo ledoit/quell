@@ -1,3 +1,4 @@
+import { KPattern, type KPatternData, type KPatternOrbitData } from "cubing/kpuzzle";
 import { cube3x3x3 } from "cubing/puzzles";
 import type { SetId } from "./types";
 
@@ -127,7 +128,148 @@ function readLl(pattern: Pattern, solved: Pattern): LlStickers {
 }
 
 const llCache = new Map<string, LlStickers>();
+const arrangementCache = new Map<string, LlStickers[]>();
 let svgSeq = 0;
+
+/** Yellow positions on the top and the side ring. This is the case; the other colors can move. */
+export function yellowMask(ll: LlStickers): string {
+  const mark = (row: Hue[]) => row.map((hue) => (hue === "Y" ? "Y" : ".")).join("");
+  return [ll.u, ll.f, ll.r, ll.b, ll.l].map(mark).join("/");
+}
+
+/** Side ring, the tiles that are not the top face. */
+export function sideKey(ll: LlStickers): string {
+  return [ll.f, ll.r, ll.b, ll.l].map((row) => row.join("")).join("/");
+}
+
+function permutations(items: number[]): number[][] {
+  if (items.length <= 1) return [items.slice()];
+  const out: number[][] = [];
+  for (let i = 0; i < items.length; i++) {
+    const rest = items.filter((_, index) => index !== i);
+    for (const tail of permutations(rest)) out.push([items[i], ...tail]);
+  }
+  return out;
+}
+
+function groupsOf(orientation: ArrayLike<number>): number[][] {
+  const groups = new Map<number, number[]>();
+  for (let slot = 0; slot < 4; slot++) {
+    const list = groups.get(orientation[slot]) ?? [];
+    list.push(slot);
+    groups.set(orientation[slot], list);
+  }
+  return [...groups.values()];
+}
+
+/** `from[dest]` is the slot whose piece moves into `dest`. Identity is included. */
+function sources(groups: number[][]): number[][] {
+  let acc: { slots: number[]; order: number[] }[][] = [[]];
+  for (const slots of groups) {
+    const next: { slots: number[]; order: number[] }[][] = [];
+    for (const prefix of acc) {
+      for (const order of permutations(slots)) next.push([...prefix, { slots, order }]);
+    }
+    acc = next;
+  }
+  return acc.map((picked) => {
+    const from = [0, 1, 2, 3];
+    for (const { slots, order } of picked) {
+      for (let index = 0; index < slots.length; index++) from[slots[index]] = order[index];
+    }
+    return from;
+  });
+}
+
+function parity(image: number[]): number {
+  const seen = new Array<boolean>(image.length).fill(false);
+  let odd = 0;
+  for (let start = 0; start < image.length; start++) {
+    if (seen[start]) continue;
+    let length = 0;
+    let cursor = start;
+    while (!seen[cursor]) {
+      seen[cursor] = true;
+      cursor = image[cursor];
+      length += 1;
+    }
+    if (length % 2 === 0) odd ^= 1;
+  }
+  return odd;
+}
+
+function movedParity(from: number[], orbit: number): number {
+  const image = Array.from({ length: orbit }, (_, index) => index);
+  for (let dest = 0; dest < from.length; dest++) image[from[dest]] = dest;
+  return parity(image);
+}
+
+function copyData(pattern: Pattern): KPatternData {
+  const data: KPatternData = {};
+  for (const orbit of ["CORNERS", "EDGES", "CENTERS"] as const) {
+    const source = pattern.patternData[orbit];
+    const next: KPatternOrbitData = {
+      pieces: Array.from(source.pieces),
+      orientation: Array.from(source.orientation),
+    };
+    if (source.orientationMod) next.orientationMod = Array.from(source.orientationMod);
+    data[orbit] = next;
+  }
+  return data;
+}
+
+function place(pieces: ArrayLike<number>, from: number[]): number[] {
+  const next = Array.from(pieces);
+  for (let dest = 0; dest < from.length; dest++) next[dest] = pieces[from[dest]];
+  return next;
+}
+
+/**
+ * Side-colorings of one OLL. Pieces swap only inside a shared orientation,
+ * so the yellow pattern stays and the algorithm still orients the layer.
+ * PLL is not rearranged: its side colors are the case.
+ */
+export async function caseArrangements(setup: string, solve: string): Promise<LlStickers[]> {
+  const key = `${setup.replace(/\s+/g, " ").trim()}|${solve.replace(/\s+/g, " ").trim()}`;
+  const hit = arrangementCache.get(key);
+  if (hit) return hit;
+  const kp = await kpuzzle();
+  const solved = kp.defaultPattern().applyAlg("z2");
+  const base = kp.defaultPattern().applyAlg(setup ? `z2 ${setup}` : "z2");
+  const mask = yellowMask(readLl(base, solved));
+  const edgeFrom = sources(groupsOf(base.patternData.EDGES.orientation));
+  const cornerFrom = sources(groupsOf(base.patternData.CORNERS.orientation));
+  const seen = new Set<string>();
+  const out: LlStickers[] = [];
+  for (const edges of edgeFrom) {
+    for (const corners of cornerFrom) {
+      if (movedParity(edges, 12) !== movedParity(corners, 8)) continue;
+      const data = copyData(base);
+      data.EDGES.pieces = place(base.patternData.EDGES.pieces, edges);
+      data.CORNERS.pieces = place(base.patternData.CORNERS.pieces, corners);
+      const placed = new KPattern(base.kpuzzle, data);
+      const picture = readLl(placed, solved);
+      if (yellowMask(picture) !== mask) throw new Error("arrangement moved a yellow sticker");
+      const oriented = placed.applyAlg(solve);
+      const after = readLl(oriented, solved);
+      if (after.u.some((hue) => hue !== "Y")) throw new Error("arrangement is not oriented by the algorithm");
+      const centers = oriented.patternData.CENTERS;
+      const home = solved.patternData.CENTERS;
+      for (let index = 0; index < centers.pieces.length; index++) {
+        if (centers.pieces[index] !== home.pieces[index] || centers.orientation[index] !== home.orientation[index]) {
+          throw new Error("arrangement does not leave the centers in place");
+        }
+      }
+      const sides = sideKey(picture);
+      if (seen.has(sides)) continue;
+      seen.add(sides);
+      out.push(picture);
+    }
+  }
+  if (!out.length) throw new Error("case has no drawable arrangement");
+  arrangementCache.set(key, out);
+  return out;
+}
 
 export async function lastLayer(moves: string): Promise<LlStickers> {
   const key = moves.replace(/\s+/g, " ").trim();

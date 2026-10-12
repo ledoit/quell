@@ -30,7 +30,7 @@ Case labels read `OLL 18` and `Ja`. Tapping a case marks it. It does not open a 
 
 **Status:** Signed in chat. Same window, same Soft and Hard. This does not replace the grid.
 
-**Job.** Use the SpeedCubeDB 3x3 standard algorithm, in their notation, for each OLL and PLL. Cube rotations are written out of the algorithm, and the case is turned so that angle matches the moves. Every case draws its side stickers. Quiz is an infinite multiple-choice drill: one case, three algorithms stacked, and the other two are the closest algorithms by shared triggers (sexy, sledge, sune, and the rest).
+**Job.** Use the SpeedCubeDB 3x3 standard algorithm, in their notation, for each OLL and PLL. Cube rotations are written out of the algorithm, and the case is turned so that angle matches the moves. Every case draws its side stickers. An OLL’s non-yellow colors are drawn from the arrangements that keep that yellow pattern. Quiz is an infinite multiple-choice drill: one case, three algorithms stacked, and the other two are the closest algorithms by shared triggers (sexy, sledge, sune, and the rest).
 
 **Surface.** The same full-window page. Quiz replaces the grid; it is not a second page.
 
