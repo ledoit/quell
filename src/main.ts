@@ -1,11 +1,11 @@
 import { OLL } from "./data/oll";
 import { PLL } from "./data/pll";
 import { faceHtml } from "./face";
-import { lastLayer, type LlStickers } from "./ll";
+import { caseArrangements, lastLayer, sideKey, type LlStickers } from "./ll";
 import { findPattern, patternsFor, type PatternDef } from "./patterns";
 import { anotherCase, quizOptions, type QuizOption } from "./quiz";
 import "./style.css";
-import { caseSetup, verifyCases } from "./truth";
+import { caseSetup, flatAlg, verifyCases } from "./truth";
 import type { CaseDef, SetId } from "./types";
 
 type Look = "soft" | "hard";
@@ -22,6 +22,8 @@ const who = alg.querySelector<HTMLElement>(".who")!;
 const movesEl = alg.querySelector<HTMLElement>(".moves")!;
 
 const faces = new Map<string, LlStickers>();
+const arrangements = new Map<string, LlStickers[]>();
+const shown = new Map<string, LlStickers>();
 
 type Quiz = { caseId: string; options: QuizOption[]; picked: string | null };
 
@@ -31,6 +33,8 @@ let caseId: string | null = null;
 let look: Look = readLook();
 let quiz: Quiz | null = null;
 let quizMarkAt = 0;
+let viewToken = 0;
+let rolledToken = -1;
 
 document.documentElement.dataset.look = look;
 app.dataset.look = look;
@@ -46,6 +50,39 @@ function readLook(): Look {
 function ask(avoid: string | null = quiz?.caseId ?? null): void {
   const answer = anotherCase(casesFor(set), avoid);
   quiz = { caseId: answer.id, options: quizOptions(casesFor(set), answer), picked: null };
+  viewToken += 1;
+}
+
+function faceOf(current: SetId, id: string): LlStickers | undefined {
+  return shown.get(`${current}:${id}`) ?? faces.get(`${current}:${id}`);
+}
+
+function roll(current: SetId, ids: string[]): void {
+  if (current !== "oll") return;
+  for (const id of ids) {
+    const bag = arrangements.get(id);
+    if (!bag?.length) continue;
+    const key = `${current}:${id}`;
+    const prev = shown.get(key);
+    const others = bag.filter((ll) => !prev || sideKey(ll) !== sideKey(prev));
+    const pool = others.length ? others : bag;
+    shown.set(key, pool[Math.floor(Math.random() * pool.length)]);
+  }
+}
+
+function rollView(): void {
+  if (rolledToken === viewToken) return;
+  rolledToken = viewToken;
+  if (quiz) {
+    roll(set, [quiz.caseId]);
+    return;
+  }
+  if (patternId) {
+    const pattern = findPattern(set, patternId);
+    if (pattern) roll(set, pattern.ids);
+    return;
+  }
+  roll(set, patternsFor(set).map((pattern) => pattern.ids[0]));
 }
 
 function casesFor(current: SetId): CaseDef[] {
@@ -127,6 +164,7 @@ function applyLook(next: Look): void {
 }
 
 function render(): void {
+  rollView();
   const pattern = patternId ? findPattern(set, patternId) : undefined;
   for (const button of app.querySelectorAll<HTMLButtonElement>("[data-set]")) {
     button.classList.toggle("on", button.dataset.set === set);
@@ -168,7 +206,7 @@ function quizHtml(): string {
   if (!quiz) return "";
   const entry = caseById(set, quiz.caseId);
   const label = entry ? caseLabel(set, entry) : quiz.caseId;
-  const face = faceHtml(faces.get(`${set}:${quiz.caseId}`), set, `q-${set}-${quiz.caseId}`);
+  const face = faceHtml(faceOf(set, quiz.caseId), set, `q-${set}-${quiz.caseId}`);
   const options = quiz.options
     .map((option) => {
       const mark = quiz?.picked
@@ -187,7 +225,7 @@ function quizHtml(): string {
 function patternCells(): string[] {
   return patternsFor(set).map((pattern) => {
     const sample = pattern.ids[0];
-    const face = faceHtml(faces.get(`${set}:${sample}`), set, `p-${set}-${pattern.id}`);
+    const face = faceHtml(faceOf(set, sample), set, `p-${set}-${pattern.id}`);
     return `<button type="button" class="cell" data-pattern="${pattern.id}">${face}<span>${pattern.name}</span></button>`;
   });
 }
@@ -196,7 +234,7 @@ function caseCells(pattern: PatternDef): string[] {
   return pattern.ids.map((id) => {
     const entry = caseById(set, id);
     const label = entry ? caseLabel(set, entry) : id;
-    const face = faceHtml(faces.get(`${set}:${id}`), set, `c-${set}-${id}`);
+    const face = faceHtml(faceOf(set, id), set, `c-${set}-${id}`);
     const idClass = set === "pll" ? " id" : "";
     return `<button type="button" class="cell" data-case="${id}">${face}<span class="${idClass.trim()}">${label}</span></button>`;
   });
@@ -237,8 +275,10 @@ app.addEventListener("click", (event) => {
   }
   if (!target.closest("#menu")) setMenu(false);
   if (target.closest("[data-mode='quiz']")) {
-    if (quiz) quiz = null;
-    else {
+    if (quiz) {
+      quiz = null;
+      viewToken += 1;
+    } else {
       patternId = null;
       caseId = null;
       ask(null);
@@ -253,12 +293,14 @@ app.addEventListener("click", (event) => {
     patternId = null;
     caseId = null;
     if (quiz) ask(null);
+    else viewToken += 1;
     render();
     return;
   }
   if (target.closest("#back")) {
     patternId = null;
     caseId = null;
+    viewToken += 1;
     render();
     return;
   }
@@ -266,6 +308,7 @@ app.addEventListener("click", (event) => {
   if (patternBtn?.dataset.pattern) {
     patternId = patternBtn.dataset.pattern;
     caseId = null;
+    viewToken += 1;
     render();
     return;
   }
@@ -280,6 +323,7 @@ addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
   if (quiz) {
     quiz = null;
+    viewToken += 1;
     render();
     return;
   }
@@ -317,10 +361,14 @@ async function loadFaces(): Promise<void> {
   ];
   await Promise.all(
     jobs.map(async ({ set: current, entry }) => {
-      const ll = await lastLayer(caseSetup(entry.algs[0].moves));
+      const moves = entry.algs[0].moves;
+      const setup = caseSetup(moves);
+      const ll = await lastLayer(setup);
       faces.set(`${current}:${entry.id}`, ll);
+      if (current === "oll") arrangements.set(entry.id, await caseArrangements(setup, flatAlg(moves)));
     }),
   );
+  rolledToken = -1;
   render();
 }
 

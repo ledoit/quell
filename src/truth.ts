@@ -3,7 +3,7 @@ import { cube3x3x3 } from "cubing/puzzles";
 import { CASE_LOCK } from "./data/lock";
 import { OLL } from "./data/oll";
 import { PLL } from "./data/pll";
-import { lastLayer, type LlStickers } from "./ll";
+import { caseArrangements, lastLayer, yellowMask, type LlStickers } from "./ll";
 import type { CaseDef, SetId } from "./types";
 
 const ROTATION = /^[xyz](?:2|')?$/;
@@ -78,6 +78,7 @@ export async function verifyCases(): Promise<void> {
   const solvedKey = stateKey(yellow);
   const seen = new Map<string, string>();
   const shapes: { id: string; keys: Set<string> }[] = [];
+  let flexible = 0;
 
   const check = async (set: SetId, entry: CaseDef) => {
     const moves = entry.algs[0]?.moves ?? "";
@@ -99,9 +100,24 @@ export async function verifyCases(): Promise<void> {
     if (seen.has(diagram)) throw new Error(`${id} draws the same case as ${seen.get(diagram)}`);
     seen.set(diagram, id);
     shapes.push({ id, keys: aufs(picture, set === "oll") });
+    if (set === "oll") {
+      const variants = await caseArrangements(caseSetup(moves), flatAlg(moves));
+      const mask = yellowMask(await lastLayer(caseSetup(moves)));
+      const sides = new Set<string>();
+      for (const variant of variants) {
+        if (yellowMask(variant) !== mask) throw new Error(`${id} arrangement moved a yellow sticker`);
+        sides.add([variant.f, variant.r, variant.b, variant.l].map((row) => row.join("")).join("/"));
+      }
+      if (sides.size !== variants.length) throw new Error(`${id} arrangements are not distinct`);
+      if (!sides.has(diagram.split("/").slice(1).join("/"))) {
+        throw new Error(`${id} arrangements omit the locked side coloring`);
+      }
+      if (variants.length > 1) flexible += 1;
+    }
   };
 
   await Promise.all([...OLL.map((entry) => check("oll", entry)), ...PLL.map((entry) => check("pll", entry))]);
+  if (flexible < 1) throw new Error("no OLL has another side coloring");
 
   const ids = new Set([...OLL.map((entry) => `oll:${entry.id}`), ...PLL.map((entry) => `pll:${entry.id}`)]);
   for (const key of Object.keys(CASE_LOCK)) {
