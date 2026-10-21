@@ -1,9 +1,11 @@
 import { cube3x3x3 } from "cubing/puzzles";
 import { caseSetup, effectKey, flatAlg } from "./alg";
 import { CASE_LOCK } from "./data/lock";
+import { F2L } from "./data/f2l";
 import { OLL } from "./data/oll";
 import { PLL } from "./data/pll";
 import { caseArrangements, colorSchemes, lastLayer, OPPOSITE, recolor, topMask, yellowMask, type Hue, type LlStickers } from "./ll";
+import { centersSolved, crossSolved, cubeKey, loadPattern, pairSig, solvedCube } from "./slot";
 import { loadPresentations, mirrorMoves, presentationBoards } from "./setups";
 import type { CaseDef, SetId } from "./types";
 
@@ -183,11 +185,48 @@ export async function verifyCases(): Promise<void> {
       }
     }
   }
+  await verifyF2l();
   if (!ua) throw new Error("Ua is missing");
   const uaPicture = await lastLayer(caseSetup(ua.algs[0].moves));
   for (const scheme of schemes) {
     const painted = recolor(uaPicture, scheme);
     if (painted.u.some((hue) => hue !== painted.u[4])) throw new Error("Ua recolor split the top face");
     if (painted.edgePerm.join(",") !== uaPicture.edgePerm.join(",")) throw new Error("Ua recolor moved a piece");
+  }
+}
+
+const F2L_FACE = new Set(["U", "R", "L", "r", "l", "M"]);
+
+async function verifyF2l(): Promise<void> {
+  const solved = await solvedCube();
+  const solvedKey = cubeKey(solved);
+  const seen = new Map<string, string>();
+  if (F2L.length !== 41) throw new Error(`expected 41 F2L cases, found ${F2L.length}`);
+  for (const entry of F2L) {
+    const id = `f2l:${entry.id}`;
+    if (!entry.skill || !entry.caption || !entry.algs.length) throw new Error(`${id} is missing its skill`);
+    const sigs = new Set<string>();
+    for (const [index, alg] of entry.algs.entries()) {
+      const moves = flatAlg(alg.moves);
+      for (const token of moves.split(" ")) {
+        if (!token) continue;
+        if (!F2L_FACE.has(token[0]) && !(entry.open && index === 0)) throw new Error(`${id} ${alg.label} uses ${token}`);
+      }
+      const picture = await loadPattern(caseSetup(moves));
+      const after = picture.applyAlg(moves);
+      if (cubeKey(after) !== solvedKey) throw new Error(`${id} ${alg.label} does not solve the case it draws`);
+      if (!centersSolved(picture, solved) || !crossSolved(picture, solved)) throw new Error(`${id} ${alg.label} breaks the cross or the centers`);
+      const sig = await pairSig(moves);
+      if (!sig) throw new Error(`${id} ${alg.label} does not leave exactly one pair`);
+      sigs.add(sig);
+      if (index === 0) {
+        const prior = seen.get(sig);
+        if (prior) throw new Error(`${id} draws the same pair as ${prior}`);
+        seen.set(sig, id);
+      }
+    }
+    if (sigs.size !== 1) throw new Error(`${id} slot rows are different cases`);
+    const open = flatAlg(entry.algs[0].moves).split(" ").some((token) => token && !F2L_FACE.has(token[0]));
+    if (Boolean(entry.open) !== open) throw new Error(`${id} open flag does not match its algorithm`);
   }
 }

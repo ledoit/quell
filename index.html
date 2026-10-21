@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="description" content="Quell — OLL and PLL." />
+    <meta name="description" content="Quell — OLL, PLL, and F2L." />
     <meta name="theme-color" content="#f3f2ee" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -20,12 +20,20 @@
       rel="stylesheet"
     />
     <script>
-      try {
-        if (localStorage.getItem("quell-look") === "hard") {
+      (function () {
+        var hard = false;
+        try {
+          hard = localStorage.getItem("quell-look") === "hard";
+        } catch (e) {}
+        if (hard) {
           document.documentElement.dataset.look = "hard";
-          document.querySelector('meta[name="theme-color"]').content = "#fbfbf8";
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.content = "#fbfbf8";
         }
-      } catch (e) {}
+        var s = document.createElement("style");
+        s.textContent = "html{background:" + (hard ? "#fbfbf8" : "#f3f2ee") + "}body{visibility:hidden}";
+        document.head.appendChild(s);
+      })();
     </script>
   </head>
   <body>
@@ -33,6 +41,7 @@
       <header>
         <button type="button" class="set on" data-set="oll">OLL</button>
         <button type="button" class="set" data-set="pll">PLL</button>
+        <button type="button" class="set" data-set="f2l">F2L</button>
         <button type="button" class="set" data-mode="quiz">Quiz</button>
         <span class="grow"></span>
         <button type="button" id="back" class="back" hidden></button>

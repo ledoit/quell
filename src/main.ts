@@ -1,9 +1,12 @@
 import { effectKey, flatAlg, caseSetup } from "./alg";
+import { F2L } from "./data/f2l";
 import { OLL } from "./data/oll";
 import { PLL } from "./data/pll";
 import { faceHtml } from "./face";
 import { caseArrangements, cachedLayer, colorSchemes, lastLayer, recolor, sideKey, type LlStickers, type Scheme } from "./ll";
 import { findPattern, patternsFor, type PatternDef } from "./patterns";
+import type { SlotId } from "./slot";
+import { stillHtml, stillStickers, stillUrl } from "./still";
 import { anotherCase, quizOptions, type QuizOption } from "./quiz";
 import { loadPresentations, presentationsFor } from "./setups";
 import "./style.css";
@@ -16,6 +19,8 @@ type SetupPrefs = Record<string, string>;
 const LOOK_KEY = "quell-look";
 const FACES_KEY = "quell-faces";
 const SETUP_KEY = "quell-setup";
+const MIX_KEY = "quell-f2l-mix";
+const DEFAULT_MIX = ["wide", "front", "extract", "splitter"];
 
 const app = document.querySelector<HTMLElement>("#app")!;
 const grid = document.querySelector<HTMLElement>("#grid")!;
@@ -31,6 +36,7 @@ const setupsEl = alg.querySelector<HTMLElement>(".setups")!;
 const arrangements = new Map<string, LlStickers[]>();
 const shown = new Map<string, LlStickers>();
 const shownFlat = new Map<string, string>();
+const stills = new Map<string, Awaited<ReturnType<typeof stillStickers>>>();
 
 type Quiz = { caseId: string; options: QuizOption[]; picked: string | null };
 
@@ -40,6 +46,7 @@ let caseId: string | null = null;
 let look: Look = readLook();
 let facesOn = readFaces();
 let setupPrefs: SetupPrefs = readSetups();
+let mix: string[] = readMix();
 let schemes: Scheme[] = [];
 let quiz: Quiz | null = null;
 let quizMarkAt = 0;
@@ -86,6 +93,26 @@ function readSetups(): SetupPrefs {
   }
 }
 
+function readMix(): string[] {
+  try {
+    const raw = localStorage.getItem(MIX_KEY);
+    if (!raw) return [...DEFAULT_MIX];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [...DEFAULT_MIX];
+    return parsed.filter((item) => typeof item === "string");
+  } catch {
+    return [...DEFAULT_MIX];
+  }
+}
+
+function writeMix(): void {
+  try {
+    localStorage.setItem(MIX_KEY, JSON.stringify(mix));
+  } catch {
+    /* private mode */
+  }
+}
+
 function writeSetups(): void {
   try {
     localStorage.setItem(SETUP_KEY, JSON.stringify(setupPrefs));
@@ -101,13 +128,26 @@ function stopQuizAdvance(): void {
 
 function ask(avoid: string | null = quiz?.caseId ?? null): void {
   stopQuizAdvance();
-  const answer = anotherCase(casesFor(set), avoid);
+  const pool = quizPool();
+  const answer = anotherCase(pool, avoid);
   quiz = {
     caseId: answer.id,
-    options: quizOptions(casesFor(set), answer, (entry) => chosenMoves(set, entry.id)),
+    options: quizOptions(pool, answer, (entry) => chosenMoves(set, entry.id)),
     picked: null,
   };
   viewToken += 1;
+}
+
+function quizPool(): CaseDef[] {
+  const all = casesFor(set);
+  if (set !== "f2l") return all;
+  if (patternId) {
+    const ids = new Set(findPattern(set, patternId)?.ids ?? []);
+    return all.filter((entry) => ids.has(entry.id));
+  }
+  const chosen = mix.length ? mix : patternsFor("f2l").map((skill) => skill.id);
+  const ids = new Set(patternsFor("f2l").filter((skill) => chosen.includes(skill.id)).flatMap((skill) => skill.ids));
+  return all.filter((entry) => ids.has(entry.id));
 }
 
 function chosenMoves(current: SetId, id: string): string {
@@ -147,8 +187,23 @@ function paint(current: SetId, id: string, ll: LlStickers | undefined): LlSticke
   return scheme ? recolor(ll, scheme) : ll;
 }
 
+function chosenSlot(id: string): SlotId {
+  const list = presentationsFor("f2l", id);
+  const stored = setupPrefs[`f2l:${id}`];
+  const hit = stored ? list.find((item) => item.key === stored) : undefined;
+  const label = hit?.picture || list[0]?.picture || "FR";
+  if (label === "FL" || label === "BR" || label === "BL") return label;
+  return "FR";
+}
+
 function draw(current: SetId, id: string, marker: string): string {
-  return faceHtml(paint(current, id, baseFace(current, id)), current, marker, facesOn);
+  if (current === "f2l") {
+    const slot = chosenSlot(id);
+    const raw = stills.get(`${id}:${slot}`);
+    const scheme = facesOn ? schemes[schemeOf.get(`${current}:${id}`) ?? 0] : undefined;
+    return stillHtml(raw ? stillUrl(raw, slot, scheme, facesOn) : "");
+  }
+  return faceHtml(paint(current, id, baseFace(current, id)), current === "pll" ? "pll" : "oll", marker, facesOn);
 }
 
 function roll(current: SetId, ids: string[]): void {
@@ -200,7 +255,9 @@ function rollView(): void {
 }
 
 function casesFor(current: SetId): CaseDef[] {
-  return current === "oll" ? OLL : PLL;
+  if (current === "oll") return OLL;
+  if (current === "f2l") return F2L;
+  return PLL;
 }
 
 function caseById(current: SetId, id: string): CaseDef | undefined {
@@ -208,6 +265,11 @@ function caseById(current: SetId, id: string): CaseDef | undefined {
 }
 
 function caseLabel(current: SetId, entry: CaseDef): string {
+  if (current === "f2l") {
+    const name = entry.name;
+    const caption = entry.open ? `${name}, open` : name;
+    return entry.reach ? `${caption} · ${entry.reach}` : caption;
+  }
   return current === "oll" ? `OLL ${entry.id}` : entry.name;
 }
 
@@ -218,7 +280,8 @@ function layout(count: number): { cols: number; rows: number } {
   if (count <= 6) return { cols: 3, rows: 2 };
   if (count <= 8) return { cols: 4, rows: 2 };
   if (count <= 12) return { cols: 4, rows: 3 };
-  return { cols: 4, rows: 4 };
+  if (count <= 16) return { cols: 4, rows: 4 };
+  return { cols: 6, rows: 3 };
 }
 
 function gridFit(count: number): string {
@@ -228,7 +291,8 @@ function gridFit(count: number): string {
   if (count <= 6) return "g6";
   if (count <= 8) return "g8";
   if (count <= 12) return "g12";
-  return "g16";
+  if (count <= 16) return "g16";
+  return "g18";
 }
 
 function fitLines(root: ParentNode, selector: string, widthRatio: number, heightRatio: number, floor: number): void {
@@ -349,6 +413,7 @@ function quizHtml(): string {
   const entry = caseById(set, quiz.caseId);
   const label = entry ? caseLabel(set, entry) : quiz.caseId;
   const face = draw(set, quiz.caseId, `q-${set}-${quiz.caseId}`);
+  const shownLabel = set === "f2l" ? "" : label;
   const options = quiz.options
     .map((option) => {
       const mark = quiz?.picked
@@ -361,23 +426,29 @@ function quizHtml(): string {
       return `<button type="button" class="opt${mark}" data-opt="${option.id}"><p>${option.moves}</p></button>`;
     })
     .join("");
-  return `<div class="quiz"><div class="quiz-face">${face}<span>${label}</span></div><div class="quiz-opts">${options}</div></div>`;
+  const name = shownLabel ? `<span>${shownLabel}</span>` : "";
+  const rows =
+    quiz.options.length < 3
+      ? ` style="grid-template-rows:repeat(${quiz.options.length},minmax(0,1fr))"`
+      : "";
+  return `<div class="quiz"><div class="quiz-face">${face}${name}</div><div class="quiz-opts"${rows}>${options}</div></div>`;
 }
 
 function patternCells(): string[] {
   return patternsFor(set).map((pattern) => {
     const sample = pattern.ids[0];
     const face = draw(set, sample, `p-${set}-${pattern.id}`);
-    return `<button type="button" class="cell" data-pattern="${pattern.id}">${face}<span>${pattern.name}</span></button>`;
+    const mark = set === "f2l" ? `<i class="mix${mix.includes(pattern.id) ? " on" : ""}" data-mix="${pattern.id}"></i>` : "";
+    return `<button type="button" class="cell" data-pattern="${pattern.id}">${face}<span>${pattern.name}${mark}</span></button>`;
   });
 }
 
 function caseCells(pattern: PatternDef): string[] {
   return pattern.ids.map((id) => {
     const entry = caseById(set, id);
-    const label = entry ? caseLabel(set, entry) : id;
+    const label = entry ? (set === "f2l" ? entry.name : caseLabel(set, entry)) : id;
     const face = draw(set, id, `c-${set}-${id}`);
-    const idClass = set === "pll" ? " id" : "";
+    const idClass = set === "pll" || set === "f2l" ? " id" : "";
     return `<button type="button" class="cell" data-case="${id}">${face}<span class="${idClass.trim()}">${label}</span></button>`;
   });
 }
@@ -458,7 +529,7 @@ app.addEventListener("click", (event) => {
       quiz = null;
       viewToken += 1;
     } else {
-      patternId = null;
+      if (set !== "f2l") patternId = null;
       caseId = null;
       ask(null);
     }
@@ -467,7 +538,7 @@ app.addEventListener("click", (event) => {
   }
   if (target.closest("[data-set]")) {
     const next = target.closest<HTMLElement>("[data-set]")!.dataset.set;
-    if (next !== "oll" && next !== "pll") return;
+    if (next !== "oll" && next !== "pll" && next !== "f2l") return;
     set = next;
     patternId = null;
     caseId = null;
@@ -480,6 +551,14 @@ app.addEventListener("click", (event) => {
     patternId = null;
     caseId = null;
     viewToken += 1;
+    render();
+    return;
+  }
+  const mixBtn = target.closest<HTMLElement>("[data-mix]");
+  if (mixBtn?.dataset.mix && set === "f2l" && !patternId && !quiz) {
+    const skill = mixBtn.dataset.mix;
+    mix = mix.includes(skill) ? mix.filter((item) => item !== skill) : [...mix, skill];
+    writeMix();
     render();
     return;
   }
@@ -523,14 +602,15 @@ addEventListener("resize", () => {
 function checkTaxonomy(): void {
   const ollIds = OLL.map((entry) => entry.id);
   const pllIds = PLL.map((entry) => entry.id);
+  const f2lIds = F2L.map((entry) => entry.id);
   const grouped = (ids: string[], patterns: PatternDef[]) => {
     const flat = patterns.flatMap((pattern) => pattern.ids);
     const missing = ids.filter((id) => !flat.includes(id));
     const extra = flat.filter((id) => !ids.includes(id));
     return missing.length === 0 && extra.length === 0 && new Set(flat).size === flat.length;
   };
-  if (!grouped(ollIds, patternsFor("oll")) || !grouped(pllIds, patternsFor("pll"))) {
-    throw new Error("Case taxonomy does not cover OLL and PLL exactly once");
+  if (!grouped(ollIds, patternsFor("oll")) || !grouped(pllIds, patternsFor("pll")) || !grouped(f2lIds, patternsFor("f2l"))) {
+    throw new Error("Case taxonomy does not cover OLL, PLL, and F2L exactly once");
   }
 }
 
@@ -539,6 +619,14 @@ async function loadFaces(): Promise<void> {
     ...OLL.map((entry) => ({ set: "oll" as const, entry })),
     ...PLL.map((entry) => ({ set: "pll" as const, entry })),
   ];
+  await Promise.all(
+    F2L.flatMap((entry) =>
+      entry.algs.map(async (alg) => {
+        const slot: SlotId = alg.label === "FL" || alg.label === "BR" || alg.label === "BL" ? alg.label : "FR";
+        stills.set(`${entry.id}:${slot}`, await stillStickers(alg.moves, slot));
+      }),
+    ),
+  );
   await Promise.all(
     jobs.map(async ({ set: current, entry }) => {
       const moves = chosenMoves(current, entry.id);

@@ -1,4 +1,6 @@
-export type SetId = "oll" | "pll";
+export type SetId = "oll" | "pll" | "f2l";
+
+export type SkillId = "basic" | "wide" | "front" | "extract" | "splitter";
 
 export type AlgVariant = {
   moves: string;
@@ -12,4 +14,8 @@ export type CaseDef = {
   group: string;
   twoLook?: boolean;
   algs: AlgVariant[];
+  skill?: SkillId;
+  caption?: string;
+  reach?: string;
+  open?: boolean;
 };
