@@ -1,8 +1,26 @@
+import { F2L } from "./data/f2l";
+import type { SkillId } from "./types";
+
 export type PatternDef = {
   id: string;
   name: string;
   ids: string[];
 };
+
+const F2L_SKILL_ORDER: { id: SkillId; name: string }[] = [
+  { id: "basic", name: "Basic" },
+  { id: "wide", name: "Wide" },
+  { id: "front", name: "Front" },
+  { id: "extract", name: "Extract" },
+  { id: "splitter", name: "Setup" },
+];
+
+/** Five skills. Setup is the splitter id. */
+export const F2L_SKILLS: PatternDef[] = F2L_SKILL_ORDER.map((skill) => ({
+  id: skill.id,
+  name: skill.name,
+  ids: F2L.filter((entry) => entry.skill === skill.id).map((entry) => entry.id),
+}));
 
 /** Fifteen OLL shapes. Every case sits in one of them. */
 export const OLL_PATTERNS: PatternDef[] = [
@@ -40,10 +58,12 @@ export const PLL_PATTERNS: PatternDef[] = [
   { id: "Z", name: "Z", ids: ["Z"] },
 ];
 
-export function patternsFor(set: "oll" | "pll"): PatternDef[] {
-  return set === "oll" ? OLL_PATTERNS : PLL_PATTERNS;
+export function patternsFor(set: "oll" | "pll" | "f2l"): PatternDef[] {
+  if (set === "oll") return OLL_PATTERNS;
+  if (set === "f2l") return F2L_SKILLS;
+  return PLL_PATTERNS;
 }
 
-export function findPattern(set: "oll" | "pll", id: string): PatternDef | undefined {
+export function findPattern(set: "oll" | "pll" | "f2l", id: string): PatternDef | undefined {
   return patternsFor(set).find((pattern) => pattern.id === id);
 }

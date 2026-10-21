@@ -1,5 +1,6 @@
 import { cube3x3x3 } from "cubing/puzzles";
 import { caseSetup, effectKey, flatAlg } from "./alg";
+import { F2L } from "./data/f2l";
 import { OLL } from "./data/oll";
 import { PLL } from "./data/pll";
 import { lastLayer, type LlStickers } from "./ll";
@@ -126,6 +127,14 @@ function cube(pattern: unknown): Cube {
 }
 
 export function presentationsFor(set: SetId, id: string): Presentation[] {
+  if (set === "f2l") {
+    const entry = F2L.find((item) => item.id === id);
+    return (entry?.algs ?? []).map((alg) => ({
+      moves: alg.moves,
+      key: effectKey(alg.moves),
+      picture: alg.label,
+    }));
+  }
   return boards.get(`${set}:${id}`) ?? [];
 }
 
