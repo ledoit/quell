@@ -26,6 +26,7 @@ const DEFAULT_MIX = ["wide", "front", "extract", "splitter"];
 const app = document.querySelector<HTMLElement>("#app")!;
 const grid = document.querySelector<HTMLElement>("#grid")!;
 const back = document.querySelector<HTMLButtonElement>("#back")!;
+const rotateBtn = document.querySelector<HTMLButtonElement>("#rotate")!;
 const menu = document.querySelector<HTMLElement>("#menu")!;
 const menuBtn = document.querySelector<HTMLButtonElement>("#menu-btn")!;
 const facesBtn = document.querySelector<HTMLButtonElement>("#menu [data-faces]")!;
@@ -443,6 +444,7 @@ function render(): void {
   }
   back.hidden = Boolean(quiz) || !pattern;
   back.textContent = pattern?.name ?? "";
+  rotateBtn.hidden = !quiz || Boolean(quiz.picked) || !canRotate(quiz.caseId);
   alg.hidden = true;
 
   if (quiz) {
@@ -495,11 +497,7 @@ function quizHtml(): string {
     quiz.options.length < 3
       ? ` style="grid-template-rows:repeat(${quiz.options.length},minmax(0,1fr))"`
       : "";
-  const turn =
-    quiz.picked || !canRotate(quiz.caseId)
-      ? ""
-      : `<button type="button" class="rotate" data-rotate aria-label="Rotate case"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 3v5h-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`;
-  return `<div class="quiz"><div class="quiz-face">${turn}${face}${name}</div><div class="quiz-opts"${rows}>${options}</div></div>`;
+  return `<div class="quiz"><div class="quiz-face">${face}${name}</div><div class="quiz-opts"${rows}>${options}</div></div>`;
 }
 
 function patternCells(): string[] {
@@ -539,11 +537,11 @@ async function selectSetup(id: string, key: string): Promise<void> {
 
 app.addEventListener("click", (event) => {
   const target = event.target as Element;
+  if (target.closest("#rotate")) {
+    rotateQuiz();
+    return;
+  }
   if (quiz && target.closest("#grid")) {
-    if (target.closest("[data-rotate]")) {
-      rotateQuiz();
-      return;
-    }
     const option = target.closest<HTMLElement>("[data-opt]");
     if (!quiz.picked && option?.dataset.opt) {
       const picked = option.dataset.opt;
