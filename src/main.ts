@@ -7,7 +7,8 @@ import { caseArrangements, cachedLayer, colorSchemes, lastLayer, recolor, sideKe
 import { findPattern, patternsFor, type PatternDef } from "./patterns";
 import type { SlotId } from "./slot";
 import { stillHtml, stillStickers, stillUrl } from "./still";
-import { anotherCase, quizOptions, type QuizOption } from "./quiz";
+import { anotherCase, quizOptions, refreshedQuizOptions, type QuizOption } from "./quiz";
+import { CLOCKWISE_SLOTS, movesAtQuarter, nextClockwiseSlot, quarterOf, rotatePresentation, rotateStickers } from "./rotate";
 import { loadPresentations, presentationsFor } from "./setups";
 import "./style.css";
 import { verifyCases } from "./truth";
@@ -130,9 +131,10 @@ function ask(avoid: string | null = quiz?.caseId ?? null): void {
   stopQuizAdvance();
   const pool = quizPool();
   const answer = anotherCase(pool, avoid);
+  const angle = angleOf(answer.id);
   quiz = {
     caseId: answer.id,
-    options: quizOptions(pool, answer, (entry) => chosenMoves(set, entry.id)),
+    options: quizOptions(pool, answer, (entry) => quizMoves(entry.id, angle)),
     picked: null,
   };
   viewToken += 1;
@@ -194,6 +196,68 @@ function chosenSlot(id: string): SlotId {
   const label = hit?.picture || list[0]?.picture || "FR";
   if (label === "FL" || label === "BR" || label === "BL") return label;
   return "FR";
+}
+
+function angleOf(id: string): number {
+  if (set === "f2l") {
+    const at = CLOCKWISE_SLOTS.indexOf(chosenSlot(id));
+    return at < 0 ? 0 : at;
+  }
+  return quarterOf(presentationsFor(set, id), chosenMoves(set, id));
+}
+
+function quizMoves(id: string, angle: number): string {
+  const list = presentationsFor(set, id);
+  if (set === "f2l") {
+    const slot = CLOCKWISE_SLOTS[angle];
+    const hit = slot ? list.find((item) => item.picture === slot) : undefined;
+    return hit?.moves ?? chosenMoves(set, id);
+  }
+  return movesAtQuarter(list, chosenMoves(set, id), angle);
+}
+
+function rotatedChoice(id: string): { key: string; moves: string } | undefined {
+  const list = presentationsFor(set, id);
+  if (set === "f2l") return nextClockwiseSlot(list, chosenSlot(id));
+  return rotatePresentation(list, chosenMoves(set, id));
+}
+
+function canRotate(id: string): boolean {
+  const next = rotatedChoice(id);
+  return Boolean(next && next.key !== effectKey(chosenMoves(set, id)));
+}
+
+function rotateQuiz(): void {
+  if (!quiz || quiz.picked) return;
+  const id = quiz.caseId;
+  const next = rotatedChoice(id);
+  if (!next || next.key === effectKey(chosenMoves(set, id))) return;
+  const previous = quiz.options;
+  const current = chosenMoves(set, id);
+  setupPrefs[`${set}:${id}`] = next.key;
+  writeSetups();
+  const faceKey = `${set}:${id}`;
+  if (set === "oll") {
+    const prev = shown.get(faceKey);
+    if (prev && shownFlat.get(faceKey) === flatAlg(current)) {
+      shown.set(faceKey, rotateStickers(prev));
+      shownFlat.set(faceKey, flatAlg(next.moves));
+    } else {
+      shown.delete(faceKey);
+      shownFlat.delete(faceKey);
+    }
+  } else {
+    shown.delete(faceKey);
+    shownFlat.delete(faceKey);
+  }
+  const answer = caseById(set, id);
+  if (!answer || quiz.caseId !== id) return;
+  const angle = angleOf(id);
+  quiz = {
+    ...quiz,
+    options: refreshedQuizOptions(quizPool(), answer, (entry) => quizMoves(entry.id, angle), previous),
+  };
+  render();
 }
 
 function draw(current: SetId, id: string, marker: string): string {
@@ -431,7 +495,11 @@ function quizHtml(): string {
     quiz.options.length < 3
       ? ` style="grid-template-rows:repeat(${quiz.options.length},minmax(0,1fr))"`
       : "";
-  return `<div class="quiz"><div class="quiz-face">${face}${name}</div><div class="quiz-opts"${rows}>${options}</div></div>`;
+  const turn =
+    quiz.picked || !canRotate(quiz.caseId)
+      ? ""
+      : `<button type="button" class="rotate" data-rotate aria-label="Rotate case"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 3v5h-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`;
+  return `<div class="quiz"><div class="quiz-face">${turn}${face}${name}</div><div class="quiz-opts"${rows}>${options}</div></div>`;
 }
 
 function patternCells(): string[] {
@@ -472,6 +540,10 @@ async function selectSetup(id: string, key: string): Promise<void> {
 app.addEventListener("click", (event) => {
   const target = event.target as Element;
   if (quiz && target.closest("#grid")) {
+    if (target.closest("[data-rotate]")) {
+      rotateQuiz();
+      return;
+    }
     const option = target.closest<HTMLElement>("[data-opt]");
     if (!quiz.picked && option?.dataset.opt) {
       const picked = option.dataset.opt;
